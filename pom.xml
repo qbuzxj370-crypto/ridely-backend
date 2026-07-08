@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Spring Boot 3.5.14 (Stable, Java 25 ready since 3.5.5) + 안정성 우선 결정 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.14</version>
+        <relativePath/>
+    </parent>
+
+    <!-- ===== 프로젝트 식별 (팀 조율 후 확정) ===== -->
+    <groupId>kr.ridely</groupId>
+    <artifactId>ridely</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>Ridely</name>
+    <description>흩어진 자전거 인프라를 활용해 라이딩을 키우는 AI 트레이너</description>
+
+    <properties>
+        <!-- Java 25 LTS (Spring Boot 3.5.5+ Java 25 ready, 학과 수업 일치) -->
+        <java.version>25</java.version>
+
+        <!-- ===== AI 버전 관리 =====
+             Spring AI 버전 전략 (팀 결정: 안정성 우선):
+               - 채택:      1.1.6 Stable (Spring Boot 3.x 기반)
+               - 미채택:    2.0.0-M6 (Milestone, API 변경 가능성)
+               - 미채택:    2.0.0 GA (2026.06.04 예정, Spring Boot 4 필수)
+
+             LLM Starter 선택:
+               - 채택: spring-ai-starter-model-google-genai
+                 · Gemini Developer API (개발) + Vertex AI (운영) 모두 지원
+                 · application.yml 프로파일만 전환하면 됨
+               - 대안: spring-ai-starter-model-vertex-ai-gemini
+                 · 1.x에선 정상 사용 가능, 단 GCP 인증 필수
+                 · 1.x Google Gen AI에 이슈 발견 시 즉시 전환 가능
+        -->
+        <spring-ai.version>1.1.6</spring-ai.version>
+        <pgvector.version>0.1.6</pgvector.version>
+        <jts.version>1.20.0</jts.version>
+        <postgis-jdbc.version>2024.1.0</postgis-jdbc.version>
+        <!-- 이행적 종속성 CVE 대응 (testcontainers가 끌어오는 취약 버전 override)
+             commons-compress: CVE-2024-25710(8.1)·CVE-2024-26308 → 1.26.0에서 수정
+             commons-lang3:    CVE-2025-48924 → 3.18.0에서 수정 -->
+        <commons-compress.version>1.27.1</commons-compress.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
+        <jjwt.version>0.12.6</jjwt.version>
+        <mybatis.version>3.0.4</mybatis.version>
+        <springdoc.version>2.7.0</springdoc.version>
+        <lombok.version>1.18.36</lombok.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+    </properties>
+
+    <!-- Spring AI 1.1.6은 Maven Central 정식 배포 (Milestone 저장소 불필요)
+         단, 향후 1.2.x Milestone·2.x 검토 시 Milestone 저장소 추가:
+           <repositories>
+             <repository>
+               <id>spring-milestones</id>
+               <url>https://repo.spring.io/milestone</url>
+               <snapshots><enabled>false</enabled></snapshots>
+             </repository>
+           </repositories>
+    -->
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring AI 1.1.6 BOM (Stable) -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ===== 이행적 종속성 CVE 대응 =====
+                 testcontainers(:test)가 끌어오는 commons-* 취약 버전을
+                 안전 버전으로 강제. 실제 위험은 test scope로 프로덕션 미포함이나
+                 정적분석 경고 제거·심사 대응 목적으로 override. -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commons-compress.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+        <!-- ===== Spring Boot 기본 ===== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <!-- WebClient 사용 (LLM·ORS·공공데이터 비동기 호출) -->
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ===== 보안 (Spring Security + JWT) ===== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ===== DB (PostgreSQL + PostGIS + pgvector) =====
+             접근 전략 (ADR-002 옵션 Y, MyBatis 8 : JdbcClient 2):
+               - 단순 CRUD: MyBatis (Mapper XML)
+               - PostGIS/pgvector 연산자: JdbcClient + Raw SQL
+               - 벡터 검색: Spring AI VectorStore (RAG 전담)
+        -->
+
+        <!-- JdbcClient + DataSource + HikariCP (PostGIS·pgvector raw SQL용) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <!-- MyBatis Spring Boot Starter (단순 CRUD 도메인용) -->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>${mybatis.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL JDBC 드라이버 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- PostGIS JDBC (GEOMETRY 컬럼 매핑) -->
+        <dependency>
+            <groupId>net.postgis</groupId>
+            <artifactId>postgis-jdbc</artifactId>
+            <version>${postgis-jdbc.version}</version>
+        </dependency>
+
+        <!-- JTS Topology Suite -->
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>${jts.version}</version>
+        </dependency>
+
+        <!-- pgvector JDBC 매핑 -->
+        <dependency>
+            <groupId>com.pgvector</groupId>
+            <artifactId>pgvector</artifactId>
+            <version>${pgvector.version}</version>
+        </dependency>
+
+        <!-- ===== AI (Spring AI 1.1.6 Stable) =====
+             채택: spring-ai-starter-model-google-genai
+               - 1.x에 정상 존재 (Maven Central 배포)
+               - Gemini Developer API (개발) + Vertex AI (운영) 모두 지원
+               - application.yml 프로파일만 교체하면 두 환경 모두 동작
+
+             개발 환경 (application-local.yml):
+               spring.ai.google.genai.api-key: ${GOOGLE_API_KEY}
+             운영 환경 (application-prod.yml):
+               spring.ai.google.genai.vertex.project-id: ${GCP_PROJECT_ID}
+
+             대안 (1.x Google Gen AI에 이슈 발견 시):
+               spring-ai-starter-model-vertex-ai-gemini (1.x에서 정상)
+        -->
+
+        <!-- LLM 채팅 + Structured Output (Gemini Developer API ↔ Vertex AI 전환 가능) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-google-genai</artifactId>
+        </dependency>
+
+        <!-- 임베딩 (text-embedding-004, 768차원) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-vertex-ai-embedding</artifactId>
+        </dependency>
+
+        <!-- pgvector Vector Store (RAG 검색) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+        </dependency>
+
+        <!-- ===== 유틸 ===== -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>${mapstruct.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ===== API 문서 (Swagger UI) ===== -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- ===== 테스트 ===== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Spring Boot Maven Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- Java 컴파일러 (Java 25 + Lombok·MapStruct 어노테이션 프로세서) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
