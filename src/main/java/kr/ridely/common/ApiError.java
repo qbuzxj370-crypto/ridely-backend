@@ -1,7 +1,6 @@
 package kr.ridely.common;
 
 import lombok.*;
-import lombok.Setter;
 
 /**
  * 에러가 났을 때 응답에 담기는 정보.
