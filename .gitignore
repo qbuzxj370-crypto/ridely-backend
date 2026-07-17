@@ -15,9 +15,11 @@ target/
 
 ### IntelliJ IDEA ###
 .idea
+.idea/
 *.iws
 *.iml
 *.ipr
+out/
 
 ### NetBeans ###
 /nbproject/private/
@@ -32,6 +34,52 @@ build/
 ### VS Code ###
 .vscode/
 
+.settings/
+bin/
+
 .env
+.env.*
 .secrets/
 `application-local-secret.yml`
+!.env.example
+
+# GCP 서비스 계정 키 (Vertex AI 전환 시 사용 — JSON 키 파일)
+*-service-account*.json
+gcp-key*.json
+credentials*.json
+
+# ===== 로그·임시 파일 =====
+*.log
+logs/
+*.tmp
+*.bak
+*.swp
+
+# ===== OS =====
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+Desktop.ini
+
+# ===== 테스트·빌드 산출물 =====
+*.class
+*.jar
+*.war
+# Testcontainers 임시
+.testcontainers/
+
+# ===== Cordova (Phase 3, android-shell/) =====
+android-shell/node_modules/
+android-shell/platforms/
+android-shell/plugins/
+android-shell/www/build/
+# 서명 키 (Play Store 배포용 — 절대 커밋 금지)
+*.keystore
+*.jks
+keystore.properties
+
+# ===== 데이터 파일 (대용량 공공데이터 원본은 커밋하지 않는다) =====
+# 시드 SQL(db/seed/)은 커밋 대상. 원본 CSV·JSON 덤프만 제외
+data/raw/
+*.csv.gz
