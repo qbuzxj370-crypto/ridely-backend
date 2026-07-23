@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ridely.dao.AuthDao">
+
+    <!--
+        app_user INSERT.
+        status·created_at·updated_at은 스키마 DEFAULT('ACTIVE', NOW()) 사용.
+        useGeneratedKeys: INSERT 직후 파라미터 객체의 userId에 PK가 채워진다.
+    -->
+    <insert id="insertUser" parameterType="kr.ridely.vo.AppUser"
+            useGeneratedKeys="true" keyProperty="userId" keyColumn="user_id">
+        INSERT INTO app_user (login_id, password_hash, nickname, email)
+        VALUES (#{loginId}, #{passwordHash}, #{nickname}, #{email})
+    </insert>
+
+    <!-- login_id 중복 확인. UNIQUE 제약이므로 결과는 0 또는 1 -->
+    <select id="existsByLoginId" resultType="int">
+        SELECT COUNT(*)
+          FROM app_user
+         WHERE login_id = #{loginId}
+    </select>
+
+    <!-- loginId로 회원 조회 (가입 직후 확정값 회수·2주차 로그인 재사용) -->
+    <select id="selectByLoginId" resultType="kr.ridely.vo.AppUser">
+        SELECT user_id, login_id, password_hash, nickname, email,
+               status, last_login_at, created_at, updated_at
+        FROM app_user
+        WHERE login_id = #{loginId}
+    </select>
+
+    <!--
+        user_settings 기본값 INSERT (회원가입 트랜잭션 내 두 번째 INSERT).
+        user_id 외 전 컬럼은 스키마 DEFAULT
+        (avoid_danger_zones=FALSE, 우선순위 0.50/0.30/0.20, units='km',
+         notification·vibration=TRUE)로 채워진다.
+    -->
+    <insert id="insertDefaultSettings">
+        INSERT INTO user_settings (user_id)
+        VALUES (#{userId})
+    </insert>
+
+</mapper>

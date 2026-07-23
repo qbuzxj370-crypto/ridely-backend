@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: imresamu/postgis:16-3.5-bundle0-bookworm
+    container_name: ridely-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ridely}
+      POSTGRES_USER: ${DB_USER:-ridely}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ridely-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  ridely-postgres-data:

@@ -1,0 +1,208 @@
+# ============================================================
+# Ridely 공통 설정 (application.yml)
+# ============================================================
+# 프로파일별 오버라이드: application-{local|dev|prod}.yml
+# ============================================================
+
+spring:
+  application:
+    name: ridely
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  # ===== Web =====
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+  # ===== Jackson =====
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+  # ===== DataSource (PostgreSQL) =====
+  # 프로파일별 오버라이드: application-{local|dev|prod}.yml
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ridely}
+    username: ${DB_USER:ridely}
+    password: ${DB_PASSWORD:ridely}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # ===== Spring AI 1.1.6 - Google Gen AI =====
+  # spring-ai-starter-model-google-genai 기반 (Spring AI 1.x에 정상 존재)
+  #
+  # 환경별 전환 전략:
+  #   개발: Gemini Developer API (api-key 방식, 카드 불필요)
+  #   운영: Vertex AI (project-id 방식, GCP 인증)
+  # → application-local.yml 에서 api-key 설정
+  # → application-prod.yml  에서 vertex 설정
+  #
+  # ADR-003 참조
+  ai:
+    google:
+      genai:
+        chat:
+          options:
+            # ⚠️ 2026-07 기준: Gemini 1.5·2.0 전 모델 은퇴(404). 2.5-flash는 무료 티어 확실.
+            #    단 gemini-2.5-flash도 2026-10-16 은퇴 예고 → 결선 진출 시 gemini-3.5-flash 마이그레이션
+            #    (docs/GEMINI_API_SETUP.md 참조)
+            model: gemini-2.5-flash
+            temperature: 0.7
+    # pgvector Vector Store — 4주차 RAG 착수 시 재활성 (pom의 pgvector starter 주석과 세트)
+    # vectorstore:
+    #   pgvector:
+    #     index-type: HNSW
+    #     distance-type: COSINE_DISTANCE
+    #     dimensions: 768
+    #     table-name: riding_history_embedding
+    # 임베딩 — 4주차 RAG 착수 시 재활성 (pom의 vertex embedding starter 주석과 세트)
+    # 재활성 전 결정: gemini-embedding-001 호출 경로 (google-genai embedding vs vertex embedding) — ADR-005
+    # vertex:
+    #   ai:
+    #     embedding:
+    #       text:
+    #         options:
+    #           # text-embedding-004는 2026-01-14 은퇴 → gemini-embedding-001 (3072차원 기본, MRL로 768 축소 지정 필수)
+    #           model: gemini-embedding-001
+    #           dimensions: 768
+
+# ===== MyBatis (ADR-002 옵션 Y: 단순 CRUD 도메인) =====
+# 사용 규칙:
+#   - 단순 CRUD: MyBatis Mapper XML
+#   - PostGIS·pgvector 연산자: JdbcClient + Raw SQL (별도)
+#   - 벡터 검색: Spring AI VectorStore (위 spring.ai.vectorstore 참조)
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: kr.ridely
+  configuration:
+    map-underscore-to-camel-case: true    # user_id → userId 자동 매핑
+    default-statement-timeout: 30
+    jdbc-type-for-null: NULL
+    cache-enabled: false                  # MVP에선 캐시 미사용 (명시적)
+
+# ===== Server =====
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# ===== Actuator (헬스체크) =====
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# ===== Ridely 애플리케이션 설정 =====
+ridely:
+  # JWT
+  jwt:
+    secret: ${JWT_SECRET:replace-this-with-256bit-random-secret-in-prod}
+    access-token-validity-seconds: 3600       # 1시간
+    refresh-token-validity-seconds: 1209600   # 14일
+    issuer: ridely
+
+  # 외부 API
+  external:
+    # 한국관광공사 TourAPI ★ 관광데이터 공모전 핵심
+    tourapi:
+      base-url: https://apis.data.go.kr/B551011/KorService1
+      service-key: ${TOUR_API_KEY:}
+      timeout-seconds: 10
+      # MVP 적재 대상 콘텐츠 타입 (12=관광지, 14=문화시설, 39=음식점)
+      content-type-ids: 12,14,39
+    ors:
+      base-url: https://api.openrouteservice.org
+      api-key: ${ORS_API_KEY:}
+      profile: cycling-regular
+      timeout-seconds: 10
+    kakao:
+      local-base-url: https://dapi.kakao.com
+      rest-api-key: ${KAKAO_REST_API_KEY:}
+      js-api-key: ${KAKAO_JS_API_KEY:}
+      timeout-seconds: 5
+    public-data-portal:
+      taas:
+        base-url: https://opendata.koroad.or.kr/api
+        service-key: ${TAAS_SERVICE_KEY:}
+      seoul:
+        base-url: http://openapi.seoul.go.kr:8088
+        api-key: ${SEOUL_OPEN_API_KEY:}
+
+  # MVP 서비스 범위: 한강 자전거길 서울 구간 (아라한강갑문~잠실, 약 40km)
+  # TourAPI·POI 배치 적재와 코스 추천 서비스 영역 판정에 사용 (bounding box)
+  mvp-area:
+    min-lat: 37.500
+    max-lat: 37.610
+    min-lng: 126.780
+    max-lng: 127.130
+
+  # AI 동작
+  ai:
+    llm:
+      primary-provider: gemini          # gemini | groq | ollama | claude
+      timeout-seconds: 10
+      max-retry: 1
+      tone-violation-patterns:          # Coach Ridely 톤 검증
+        - "드립니다"
+        - "하시기 바랍니다"
+        - "이용자"
+    rag:
+      enabled: true
+      top-k: 5
+      similarity-threshold: 0.75
+
+  # 코스 추천
+  route:
+    candidate-radius-km: 8              # InfraCandidateCollector 검색 반경
+    cache-ttl-hours: 24
+    max-target-distance-km: 100
+    danger-zone-alert-distance-m: 200   # 라이딩 모드 근접 알림 거리
+
+  # CORS (프로파일별 오버라이드)
+  cors:
+    allowed-origins:
+      - http://localhost:8080
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
+    allow-credentials: true
+
+# ===== 로그 =====
+logging:
+  level:
+    root: INFO
+    kr.ridely: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.springframework.ai: INFO
+    org.springframework.jdbc.core.JdbcTemplate: INFO        # JdbcClient 로그
+    org.mybatis: INFO                                        # MyBatis 동작 로그
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

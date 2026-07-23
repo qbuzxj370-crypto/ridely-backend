@@ -1,30 +1,28 @@
 package kr.ridely.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.List;
-
 /**
  * CORS 설정.
- * 허용 origin은 application.yml의 ridely.cors.allowed-origins에서 주입.
+ * 허용 origin·method는 CorsProperties(ridely.cors.*)에서 주입.
  *
- * Cordova WebView는 file://, http://localhost 등에서 요청하므로
- * 개발/운영 프로파일별로 허용 목록을 다르게 둔다.
+ * Cordova WebView는 file:// 등에서 요청하므로 이 설정이 없으면
+ * 앱에서의 API 호출이 전부 차단된다. 삭제 금지.
  */
 @Configuration
+@RequiredArgsConstructor
 public class CorsConfig implements WebMvcConfigurer {
 
-    @Value("${ridely.cors.allowed-origins}")
-    private List<String> allowedOrigins;
+    private final CorsProperties corsProperties;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins(allowedOrigins.toArray(new String[0]))
-                .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
+                .allowedOrigins(corsProperties.getAllowedOrigins().toArray(new String[0]))
+                .allowedMethods(corsProperties.getAllowedMethods().toArray(new String[0]))
                 .allowedHeaders("*")
                 .allowCredentials(true);
     }

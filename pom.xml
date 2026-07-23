@@ -50,7 +50,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <mybatis.version>3.0.4</mybatis.version>
         <springdoc.version>2.7.0</springdoc.version>
-        <lombok.version>1.18.36</lombok.version>
+        <lombok.version>1.18.42</lombok.version>
         <mapstruct.version>1.6.3</mapstruct.version>
     </properties>
 
@@ -206,17 +206,21 @@
             <artifactId>spring-ai-starter-model-google-genai</artifactId>
         </dependency>
 
-        <!-- 임베딩 (text-embedding-004, 768차원) -->
+        <!-- 임베딩 (text-embedding-004, 768차원) 배포 단계에서 활성화-->
+        <!--
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-vertex-ai-embedding</artifactId>
         </dependency>
+        -->
 
-        <!-- pgvector Vector Store (RAG 검색) -->
+        <!-- pgvector Vector Store (RAG 검색) 4주차 RAG 착수 시점에 gemini-embedding-001을 어느 스타터로 호출할지(google-genai embedding vs vertex embedding) 재결정-->
+        <!--
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
         </dependency>
+        -->
 
         <!-- ===== 유틸 ===== -->
         <dependency>

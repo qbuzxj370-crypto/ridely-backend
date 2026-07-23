@@ -2,9 +2,11 @@ package kr.ridely.dto.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 회원가입 요청 데이터.
@@ -39,17 +41,15 @@ public class SignupRequestDTO {
 
     /**
      * 비밀번호 (평문).
-     * 서버에서 해시한 뒤 app_user.password_hash에 저장한다.
+     * 서버에서 BCrypt로 해시한 뒤 app_user.password_hash에 저장한다.
      * 절대 평문 그대로 DB에 넣지 않는다.
      *
-     * 정책 위반 시 AUTH-102 에러.
+     * ※ 여기서는 빈값만 검사한다(빈값 → COMMON-001).
+     *   정책(8~30자, 영문+숫자+특수문자 각 1자 이상)은 AuthServiceImpl에서
+     *   검증한다 — DTO @Pattern으로 검증하면 위반이 전부 COMMON-001로
+     *   변환되어 AUTH-102가 나갈 수 없기 때문 (검증 책임 분리).
      */
     @NotBlank(message = "비밀번호를 입력해 주세요")
-    @Size(min = 8, max = 30, message = "비밀번호는 8~30자여야 합니다")
-    @Pattern(
-            regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).+$",
-            message = "비밀번호는 영문, 숫자, 특수문자를 각각 1자 이상 포함해야 합니다"
-    )
     private String password;
 
     /** 앱에서 표시되는 별명 */
