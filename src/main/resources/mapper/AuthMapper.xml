@@ -21,6 +21,14 @@
          WHERE login_id = #{loginId}
     </select>
 
+    <!-- loginId로 회원 조회 (가입 직후 확정값 회수·2주차 로그인 재사용) -->
+    <select id="selectByLoginId" resultType="kr.ridely.vo.AppUser">
+        SELECT user_id, login_id, password_hash, nickname, email,
+               status, last_login_at, created_at, updated_at
+        FROM app_user
+        WHERE login_id = #{loginId}
+    </select>
+
     <!--
         user_settings 기본값 INSERT (회원가입 트랜잭션 내 두 번째 INSERT).
         user_id 외 전 컬럼은 스키마 DEFAULT
