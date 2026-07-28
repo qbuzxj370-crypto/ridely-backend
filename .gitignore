@@ -46,9 +46,8 @@ bin/
 application-local-secret.yml
 !.env.example
 
-# 로컬 DB 크리덴셜/스키마 포함 — 커밋 금지 (.env로 관리)
+# 로컬 DB 크리덴셜 포함 — 커밋 금지 (.env로 관리)
 src/main/resources/application-local.yml
-docs/ridely_schema.sql
 
 # ===== 기획·설계 문서 (로컬 전용) =====
 # docs/ 내용은 기본적으로 커밋하지 않는다.
