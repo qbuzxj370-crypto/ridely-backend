@@ -34,6 +34,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### AI 코딩 도구 (로컬 설정) ###
+.claude/
+
 .settings/
 bin/
 
@@ -46,6 +49,14 @@ application-local-secret.yml
 # 로컬 DB 크리덴셜/스키마 포함 — 커밋 금지 (.env로 관리)
 src/main/resources/application-local.yml
 docs/ridely_schema.sql
+
+# ===== 기획·설계 문서 (로컬 전용) =====
+# docs/ 내용은 기본적으로 커밋하지 않는다.
+# 팀과 공유할 하위 폴더가 생기면 아래처럼 예외를 추가한다:
+#   !docs/shared/
+# ※ 'docs/'가 아니라 'docs/*'로 적어야 한다.
+#   디렉터리 자체를 제외하면 git이 내부를 탐색하지 않아 !예외가 동작하지 않는다.
+docs/*
 
 # GCP 서비스 계정 키 (Vertex AI 전환 시 사용 — JSON 키 파일)
 *-service-account*.json
