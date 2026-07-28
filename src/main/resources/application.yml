@@ -126,7 +126,9 @@ ridely:
   external:
     # 한국관광공사 TourAPI ★ 관광데이터 공모전 핵심
     tourapi:
-      base-url: https://apis.data.go.kr/B551011/KorService1
+      # 활용매뉴얼 v4.4(2026-02) 기준 현행 서비스는 KorService2.
+      # 오퍼레이션명도 모두 2로 끝난다 (locationBasedList2, detailCommon2 등).
+      base-url: https://apis.data.go.kr/B551011/KorService2
       service-key: ${TOUR_API_KEY:}
       timeout-seconds: 10
       # MVP 적재 대상 콘텐츠 타입 (12=관광지, 14=문화시설, 39=음식점)

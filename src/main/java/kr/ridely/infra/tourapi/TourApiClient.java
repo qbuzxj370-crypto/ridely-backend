@@ -4,18 +4,22 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * 한국관광공사 TourAPI 클라이언트.
- * MVP는 locationBasedList1(위치 기반 관광정보)만 사용.
+ * 한국관광공사 TourAPI 클라이언트 (활용매뉴얼 v4.4 / KorService2 기준).
+ * MVP는 locationBasedList2(위치 기반 관광정보)만 사용.
  *
  * 호출 형태 (GET):
- *   {baseUrl}/locationBasedList1
+ *   {baseUrl}/locationBasedList2
  *     ?serviceKey={키}&MobileOS=ETC&MobileApp=Ridely&_type=json
  *     &mapX={경도}&mapY={위도}&radius={미터}&contentTypeId={12|14|39}
  *
  * ⚠️ 주의:
- *   - serviceKey는 URL 인코딩된 상태로 발급됨 → WebClient가 이중 인코딩하지 않도록
- *     UriComponentsBuilder.build(true) 또는 인코딩 모드 조정 필요 (자주 겪는 트러블)
  *   - mapX=경도(lng), mapY=위도(lat) — 순서 헷갈리기 쉬움
+ *   - radius 최대 20000(m)
+ *   - MobileApp은 활용 통계 산출용 필수 항목 (매뉴얼 명시)
+ *   - 포털 레벨 오류(키 미등록·한도 초과)는 _type=json이어도 XML로 응답한다.
+ *     본문이 "<OpenAPI_ServiceResponse"로 시작하면 오류로 분기해야 한다.
+ *   - 현재 발급되는 서비스 키는 영숫자 조합이라 이중 인코딩 문제가 없다.
+ *     WebClient 기본 동작(queryParam 자동 인코딩)을 그대로 쓰면 된다.
  */
 @Component
 public class TourApiClient {
@@ -30,7 +34,7 @@ public class TourApiClient {
     }
 
     /**
-     * 위치 기반 관광 콘텐츠 조회 (locationBasedList1).
+     * 위치 기반 관광 콘텐츠 조회 (locationBasedList2).
      *
      * @param lng           경도 (mapX)
      * @param lat           위도 (mapY)
