@@ -1,7 +1,13 @@
 package kr.ridely.infra.tourapi;
 
+import kr.ridely.common.BusinessException;
+import kr.ridely.common.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.time.Duration;
 
 /**
  * 한국관광공사 TourAPI 클라이언트 (활용매뉴얼 v4.4 / KorService2 기준).
@@ -24,12 +30,19 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Component
 public class TourApiClient {
 
+    private static final Logger log = LoggerFactory.getLogger(TourApiClient.class);
+
+    /** 매뉴얼상 radius 상한 (m) */
+    private static final int MAX_RADIUS_M = 20000;
+
+    /** 포털 레벨 오류 응답(XML)의 시작 태그 */
+    private static final String PORTAL_ERROR_PREFIX = "<OpenAPI_ServiceResponse";
+
     private final WebClient webClient;
     private final TourApiProperties properties;
 
     public TourApiClient(WebClient.Builder webClientBuilder, TourApiProperties properties) {
         this.properties = properties;
-        // TODO: baseUrl 설정 + 타임아웃 적용
         this.webClient = webClientBuilder.baseUrl(properties.baseUrl()).build();
     }
 
@@ -43,12 +56,46 @@ public class TourApiClient {
      * @return 응답 JSON 원문 (PoC 단계 — 이후 DTO 파싱으로 발전)
      */
     public String fetchNearbySpots(double lng, double lat, int radiusM, int contentTypeId) {
-        // TODO(C6 PoC):
-        //   1. queryParam 조립 (serviceKey, MobileOS=ETC, MobileApp=Ridely, _type=json,
-        //      mapX, mapY, radius, contentTypeId)
-        //   2. webClient.get().uri(...).retrieve().bodyToMono(String.class).block()
-        //   3. 서비스 키 이중 인코딩 문제 발생 시 위 클래스 주석 참고
-        // TODO(2주차 이후): String → TourApiResponse DTO 파싱, tour_spot 테이블 배치 적재
-        throw new UnsupportedOperationException("TODO: C6 PoC에서 구현");
+        int radius = Math.min(radiusM, MAX_RADIUS_M);
+
+        String body = webClient.get()
+                .uri(uri -> uri.path("/locationBasedList2")
+                        .queryParam("serviceKey", properties.serviceKey())
+                        .queryParam("MobileOS", "ETC")
+                        .queryParam("MobileApp", "Ridely")
+                        .queryParam("_type", "json")
+                        .queryParam("mapX", lng)
+                        .queryParam("mapY", lat)
+                        .queryParam("radius", radius)
+                        .queryParam("contentTypeId", contentTypeId)
+                        .queryParam("arrange", "E")       // 거리순
+                        .queryParam("numOfRows", 20)
+                        .queryParam("pageNo", 1)
+                        .build())
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(properties.timeoutSeconds()))
+                .block();
+
+        verifyNotPortalError(body);
+        return body;
+    }
+
+    /**
+     * 포털 레벨 오류 검사.
+     *
+     * 키 미등록·한도 초과 등은 HTTP 200에 XML 본문으로 내려오기 때문에 WebClient의 상태 코드 검사로는 걸러지지 않는다.
+     * 본문을 직접 확인해야 한다.
+     */
+    private void verifyNotPortalError(String body) {
+        if (body == null || body.isBlank()) {
+            log.error("TourAPI 응답이 비어 있음");
+            throw new BusinessException(ErrorCode.COMMON_500);
+        }
+        if (body.stripLeading().startsWith(PORTAL_ERROR_PREFIX)) {
+            // 원인(등록되지 않은 서비스키, 한도 초과 등)이 본문에 들어 있으므로 그대로 남긴다
+            log.error("TourAPI 포털 오류 응답: {}", body);
+            throw new BusinessException(ErrorCode.COMMON_500);
+        }
     }
 }
