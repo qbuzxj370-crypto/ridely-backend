@@ -23,35 +23,16 @@ import java.util.Map;
 /**
  * 한강 서울 구간 관광 콘텐츠 적재 구현.
  *
- * 수집 범위: 아라한강갑문~잠실 약 40km.
+ * 수집 지점·반경은 application.yml의 ridely.external.tourapi.ingest 에서 받는다.
  * 반경 20km 원 하나로 덮으면 한강과 무관한 서울 전역이 딸려오므로,
- * 한강 축을 따라 중심점을 여러 개 두고 작은 반경으로 나눠 훑는다.
+ * 한강 축(아라한강갑문~잠실 약 40km)을 따라 중심점을 여러 개 두고 작은 반경으로 훑는다.
+ * 지역을 넓힐 때 코드가 아니라 설정만 바꾸면 되도록 분리했다.
  */
 @Service
 @RequiredArgsConstructor
 public class TourIngestServiceImpl implements TourIngestService {
 
     private static final Logger log = LoggerFactory.getLogger(TourIngestServiceImpl.class);
-
-    /**
-     * 한강 축 수집 중심점 {경도, 위도}.
-     * 인접 지점과 겹치도록 배치해 구간 누락을 막는다.
-     */
-    private static final double[][] HANGANG_POINTS = {
-            {126.7965, 37.5836},   // 아라한강갑문 (김포)
-            {126.8330, 37.5900},   // 행주대교
-            {126.8783, 37.5665},   // 난지·월드컵공원
-            {126.8997, 37.5434},   // 선유도공원
-            {126.9339, 37.5265},   // 여의도한강공원
-            {126.9720, 37.5170},   // 동작·노들섬
-            {126.9954, 37.5100},   // 반포한강공원
-            {127.0300, 37.5170},   // 잠원·한남
-            {127.0700, 37.5290},   // 뚝섬한강공원
-            {127.0820, 37.5180},   // 잠실한강공원
-    };
-
-    /** 중심점당 수집 반경 (m). 중심점 간격이 3~5km라 겹치도록 잡는다 */
-    private static final int RADIUS_M = 3000;
 
     /** 한 번에 받아올 항목 수 (매뉴얼상 상한 없음, 응답 크기 고려) */
     private static final int PAGE_SIZE = 100;
@@ -85,14 +66,18 @@ public class TourIngestServiceImpl implements TourIngestService {
         regionIdCache.clear();
 
         List<Integer> contentTypeIds = parseContentTypeIds();
+        TourApiProperties.Ingest ingest = properties.ingest();
         int apiCalls = 0, received = 0, upserted = 0, skipped = 0;
 
-        for (double[] point : HANGANG_POINTS) {
+        for (TourApiProperties.Point point : ingest.points()) {
+            int pointReceived = 0;
+
             for (int contentTypeId : contentTypeIds) {
                 int page = 1;
                 while (page <= MAX_PAGES) {
                     String json = tourApiClient.fetchNearbySpots(
-                            point[0], point[1], RADIUS_M, contentTypeId, page, PAGE_SIZE);
+                            point.lng(), point.lat(), ingest.radiusM(),
+                            contentTypeId, page, PAGE_SIZE);
                     apiCalls++;
 
                     TourApiListResponse response = parser.parseList(json);
@@ -103,6 +88,7 @@ public class TourIngestServiceImpl implements TourIngestService {
 
                     for (TourApiListResponse.Item item : items) {
                         received++;
+                        pointReceived++;
                         if (save(item)) {
                             upserted++;
                         } else {
@@ -117,6 +103,7 @@ public class TourIngestServiceImpl implements TourIngestService {
                     page++;
                 }
             }
+            log.info("수집 지점 '{}' 완료 - {}건", point.name(), pointReceived);
         }
 
         int total = tourIngestDao.countAll();
