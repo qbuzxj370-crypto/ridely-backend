@@ -52,6 +52,7 @@
         <springdoc.version>2.7.0</springdoc.version>
         <lombok.version>1.18.42</lombok.version>
         <mapstruct.version>1.6.3</mapstruct.version>
+        <dotenv.version>5.1.0</dotenv.version>
     </properties>
 
     <!-- Spring AI 1.1.6은 Maven Central 정식 배포 (Milestone 저장소 불필요)
@@ -135,6 +136,17 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- .env 파일을 Spring 프로퍼티 소스로 읽는다.
+             Spring Boot는 .env를 표준으로 인식하지 않아, 셸에서 export하지 않으면
+             ${GOOGLE_API_KEY:} 같은 참조가 빈 값이 된다.
+             이 의존성이 있으면 팀원 전원이 별도 환경변수 설정 없이 .env만으로 실행할 수 있다.
+             (Spring Boot 3 전용 아티팩트. MIT) -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>springboot3-dotenv</artifactId>
+            <version>${dotenv.version}</version>
         </dependency>
 
         <!-- ===== DB (PostgreSQL + PostGIS + pgvector) =====

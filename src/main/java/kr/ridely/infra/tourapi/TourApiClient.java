@@ -47,15 +47,26 @@ public class TourApiClient {
     }
 
     /**
+     * 위치 기반 관광 콘텐츠 조회 (첫 페이지 20건).
+     * 단건 확인·PoC용 단축 메서드.
+     */
+    public String fetchNearbySpots(double lng, double lat, int radiusM, int contentTypeId) {
+        return fetchNearbySpots(lng, lat, radiusM, contentTypeId, 1, 20);
+    }
+
+    /**
      * 위치 기반 관광 콘텐츠 조회 (locationBasedList2).
      *
      * @param lng           경도 (mapX)
      * @param lat           위도 (mapY)
      * @param radiusM       반경 (미터, 최대 20000)
      * @param contentTypeId 12=관광지, 14=문화시설, 39=음식점
-     * @return 응답 JSON 원문 (PoC 단계 — 이후 DTO 파싱으로 발전)
+     * @param pageNo        페이지 번호 (1부터)
+     * @param numOfRows     한 페이지 결과 수
+     * @return 응답 JSON 원문
      */
-    public String fetchNearbySpots(double lng, double lat, int radiusM, int contentTypeId) {
+    public String fetchNearbySpots(double lng, double lat, int radiusM, int contentTypeId,
+                                   int pageNo, int numOfRows) {
         int radius = Math.min(radiusM, MAX_RADIUS_M);
 
         String body = webClient.get()
@@ -69,8 +80,8 @@ public class TourApiClient {
                         .queryParam("radius", radius)
                         .queryParam("contentTypeId", contentTypeId)
                         .queryParam("arrange", "E")       // 거리순
-                        .queryParam("numOfRows", 20)
-                        .queryParam("pageNo", 1)
+                        .queryParam("numOfRows", numOfRows)
+                        .queryParam("pageNo", pageNo)
                         .build())
                 .retrieve()
                 .bodyToMono(String.class)
