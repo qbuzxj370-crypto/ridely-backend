@@ -29,6 +29,60 @@
         WHERE login_id = #{loginId}
     </select>
 
+    <!-- 로그인 성공 시 마지막 로그인 시각 갱신 -->
+    <update id="updateLastLoginAt">
+        UPDATE app_user
+           SET last_login_at = NOW(),
+               updated_at    = NOW()
+         WHERE user_id = #{userId}
+    </update>
+
+    <!--
+        리프레시 토큰 발급 이력 저장.
+        token_hash에는 토큰 원문이 아닌 SHA-256 해시가 들어온다.
+        revoked_at은 NULL(유효), created_at은 DB 기본값.
+    -->
+    <insert id="insertRefreshToken" parameterType="kr.ridely.vo.RefreshToken"
+            useGeneratedKeys="true" keyProperty="refreshTokenId" keyColumn="refresh_token_id">
+        INSERT INTO refresh_token (user_id, token_hash, expires_at)
+        VALUES (#{userId}, #{tokenHash}, #{expiresAt})
+    </insert>
+
+    <!-- 회원 번호로 조회 (토큰의 userId로 계정 상태 확인) -->
+    <select id="selectByUserId" resultType="kr.ridely.vo.AppUser">
+        SELECT user_id, login_id, password_hash, nickname, email,
+               status, last_login_at, created_at, updated_at
+          FROM app_user
+         WHERE user_id = #{userId}
+    </select>
+
+    <!-- 토큰 해시로 발급 이력 조회 (재발급·로그아웃 시 유효성 판단용) -->
+    <select id="selectRefreshTokenByHash" resultType="kr.ridely.vo.RefreshToken">
+        SELECT refresh_token_id, user_id, token_hash, expires_at, revoked_at, created_at
+          FROM refresh_token
+         WHERE token_hash = #{tokenHash}
+    </select>
+
+    <!--
+        토큰 폐기.
+        revoked_at IS NULL 조건을 두어 이미 폐기된 토큰의 시각을 덮어쓰지 않는다.
+        (최초 폐기 시점을 남겨야 탈취 후 재사용 시도를 추적할 수 있다)
+    -->
+    <update id="revokeRefreshToken">
+        UPDATE refresh_token
+           SET revoked_at = NOW()
+         WHERE token_hash = #{tokenHash}
+           AND revoked_at IS NULL
+    </update>
+
+    <!-- 해당 사용자의 유효한 토큰 일괄 폐기 (탈퇴 등 전체 세션 종료) -->
+    <update id="revokeAllRefreshTokens">
+        UPDATE refresh_token
+           SET revoked_at = NOW()
+         WHERE user_id = #{userId}
+           AND revoked_at IS NULL
+    </update>
+
     <!--
         user_settings 기본값 INSERT (회원가입 트랜잭션 내 두 번째 INSERT).
         user_id 외 전 컬럼은 스키마 DEFAULT
