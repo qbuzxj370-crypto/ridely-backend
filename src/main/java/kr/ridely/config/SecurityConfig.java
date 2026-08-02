@@ -3,6 +3,7 @@ package kr.ridely.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -22,12 +23,17 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             // REST API라 CSRF·세션 비활성 (JWT 기반 예정)
-            .csrf(csrf -> csrf.disable())
+            .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                         "/api/v1/health",
                         "/api/v1/auth/signup",
-                        "/api/v1/auth/login",       // 2주차
+                        "/api/v1/auth/login",
+                        // 재발급·로그아웃은 요청 본문의 리프레시 토큰 자체가 자격 증명이므로
+                        // 액세스 토큰 인증을 요구하지 않는다.
+                        // (액세스 토큰이 만료된 상태에서 호출되는 것이 정상 흐름이다)
+                        "/api/v1/auth/refresh",
+                        "/api/v1/auth/logout",
                         "/api/v1/pois/**",
                         "/api/v1/tours/**",         // 관광지 조회 (비회원도 코스를 짜볼 수 있어야 한다)
                         "/api/v1/poc/**"            // 임시 PoC
