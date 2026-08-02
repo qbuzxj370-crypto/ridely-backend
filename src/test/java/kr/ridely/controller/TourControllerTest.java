@@ -26,14 +26,11 @@ class TourControllerTest extends AbstractIntegrationTest {
     private static final String 중심_위도 = "37.5434";
     private static final String 중심_경도 = "126.8997";
 
+    @Autowired
+    private MockMvc mockMvc;
 
-    private final MockMvc mockMvc;
-    private final JdbcClient jdbcClient;
-
-    TourControllerTest(@Autowired MockMvc mockMvc, @Autowired JdbcClient jdbcClient) {
-        this.mockMvc = mockMvc;
-        this.jdbcClient = jdbcClient;
-    }
+    @Autowired
+    private JdbcClient jdbcClient;
 
     @BeforeEach
     void 데이터_준비() {
