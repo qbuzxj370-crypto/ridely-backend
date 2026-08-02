@@ -29,6 +29,7 @@ public class SecurityConfig {
                         "/api/v1/auth/signup",
                         "/api/v1/auth/login",       // 2주차
                         "/api/v1/pois/**",
+                        "/api/v1/tours/**",         // 관광지 조회 (비회원도 코스를 짜볼 수 있어야 한다)
                         "/api/v1/poc/**"            // 임시 PoC
                 ).permitAll()
                 .anyRequest().authenticated()
