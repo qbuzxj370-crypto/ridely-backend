@@ -10,6 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JWT 발급·검증 (JJWT 0.12.x).
@@ -85,6 +86,12 @@ public class JwtTokenProvider {
      * 토큰 생성 공통 로직.
      * access·refresh는 만료 시간과 type 클레임만 다르므로 한 메서드로 묶는다.
      *
+     * jti(무작위 식별자)를 넣는 이유:
+     *   이것이 없으면 같은 사용자에게 같은 초에 발급한 토큰이 완전히 동일한 문자열이 된다
+     *   (sub·type·iss·iat·exp가 모두 같아 서명 결과까지 같아진다).
+     *   그러면 재발급 시 "폐기한 토큰"과 "새로 발급한 토큰"이 같은 값이 되어
+     *   회전이 무의미해지고, 같은 해시 행이 중복 저장된다.
+     *
      * @param userId          토큰 소유자 (subject에 문자열로 저장. JWT 표준상 subject는 String)
      * @param type            TYPE_ACCESS 또는 TYPE_REFRESH
      * @param validitySeconds 발급 시점부터의 유효 기간(초)
@@ -92,6 +99,7 @@ public class JwtTokenProvider {
     private String generate(long userId, String type, long validitySeconds) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString()) // jti — 토큰마다 다른 식별자
                 .subject(String.valueOf(userId))
                 .claim(CLAIM_TYPE, type)          // 커스텀 클레임 (access/refresh 구분)
                 .issuer(properties.issuer())      // 발급자 = "ridely"
