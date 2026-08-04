@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ridely.dao.UserDao">
+
+    <!-- 회원 정보 조회 (컬럼명 → 필드명 변환은 map-underscore-to-camel-case 설정이 처리) -->
+    <select id="selectById" resultType="kr.ridely.vo.AppUser">
+        SELECT user_id, login_id, password_hash, nickname, email,
+               status, last_login_at, created_at, updated_at
+          FROM app_user
+         WHERE user_id = #{userId}
+    </select>
+
+    <!--
+        회원 정보 부분 수정 (PATCH).
+
+        &lt;set&gt;은 조건에 맞는 항목만 골라 SET 절을 만들고,
+        마지막에 남는 쉼표를 알아서 떼어 준다.
+        예) 닉네임만 보내면 → SET nickname = ?, updated_at = NOW()
+
+        null 검사를 하는 이유: PATCH는 "보낸 항목만 수정"이므로
+        요청에 없던 필드(null)를 그대로 UPDATE하면 기존 값이 지워진다.
+    -->
+    <update id="updateProfile">
+        UPDATE app_user
+        <set>
+            <if test="request.nickname != null">nickname = #{request.nickname},</if>
+            <if test="request.email != null">email = #{request.email},</if>
+            updated_at = NOW()
+        </set>
+        WHERE user_id = #{userId}
+    </update>
+
+    <!--
+        회원 탈퇴 (소프트 삭제).
+        행을 지우지 않고 status만 바꾼다. 라이딩 기록·저장 경로가 이 회원을
+        참조하고 있어 실제로 삭제하면 이력까지 함께 사라진다.
+        이미 탈퇴한 회원은 다시 갱신하지 않는다.
+    -->
+    <update id="withdraw">
+        UPDATE app_user
+           SET status     = 'WITHDRAWN',
+               updated_at = NOW()
+         WHERE user_id = #{userId}
+           AND status &lt;&gt; 'WITHDRAWN'
+    </update>
+
+</mapper>
