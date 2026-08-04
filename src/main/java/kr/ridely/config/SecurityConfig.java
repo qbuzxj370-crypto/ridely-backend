@@ -37,7 +37,9 @@ public class SecurityConfig {
             "/api/v1/pois/**",
             "/api/v1/tours/**",         // 관광지 조회 (비회원도 코스를 짜볼 수 있어야 한다)
             "/api/v1/poc/**",           // 임시 PoC
-            // API 문서 (프론트 연동용). 운영 배포 시 노출 여부를 재검토한다
+            // API 문서. 경로는 열려 있지만 문서 기능 자체가 개발 프로파일에서만 켜지므로
+            // (application.yml의 springdoc.*.enabled=false가 기본값)
+            // 운영 환경에서는 이 경로로 접근해도 404가 된다.
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**"

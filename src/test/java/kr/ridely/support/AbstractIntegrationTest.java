@@ -19,7 +19,10 @@ import org.testcontainers.utility.MountableFile;
  */
 @SpringBootTest(properties = {
         // Spring AI는 기동 시 API 키를 요구한다. 이 테스트는 LLM을 호출하지 않으므로 컨텍스트 로딩만 통과하도록 더미 값을 넣는다.
-        "spring.ai.google.genai.api-key=test-dummy-key"
+        "spring.ai.google.genai.api-key=test-dummy-key",
+        // 운영 설정에는 기본값이 없다(공개 저장소라 기본값을 두지 않는다).
+        // 테스트는 환경변수에 의존하지 않도록 여기서 값을 주입한다. 32바이트 이상이어야 한다.
+        "ridely.jwt.secret=ridely-integration-test-secret-key-32bytes-over"
 })
 // local 프로파일(application-local.yml)은 각자 PC에만 있는 파일이라
 // 테스트가 이를 참조하면 다른 환경에서 재현되지 않는다. test 프로파일로 고정한다.

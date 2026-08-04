@@ -31,7 +31,8 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ridely}
     username: ${DB_USER:ridely}
-    password: ${DB_PASSWORD:ridely}
+    # 비밀번호도 기본값을 두지 않는다 (위 JWT_SECRET과 같은 이유)
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -117,7 +118,10 @@ management:
 ridely:
   # JWT
   jwt:
-    secret: ${JWT_SECRET:replace-this-with-256bit-random-secret-in-prod}
+    # 기본값을 두지 않는다. 저장소가 공개돼 있어 기본값을 적어 두면 그 값이 그대로 노출되고,
+    # 환경변수 설정을 깜빡한 채 배포하면 누구나 같은 키로 토큰을 위조할 수 있다.
+    # 값이 없으면 기동 시점에 실패하는 편이 안전하다.
+    secret: ${JWT_SECRET}
     access-token-validity-seconds: 3600       # 1시간
     refresh-token-validity-seconds: 1209600   # 14일
     issuer: ridely
@@ -212,6 +216,18 @@ ridely:
     allowed-headers:
       - "*"
     allow-credentials: true
+
+# ===== API 문서 (Swagger) =====
+# 기본값은 비활성. 개발 프로파일(local)에서만 켠다.
+#
+# 문서를 공개하면 전체 엔드포인트·파라미터·에러 체계가 그대로 드러나 공격 표면이 노출되고,
+# 화면의 Try it out으로 회원가입·로그인을 직접 호출할 수 있다.
+# 새 프로파일을 추가할 때 설정을 빠뜨려도 노출되지 않도록 기본값을 꺼 둔다.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 # ===== 로그 =====
 logging:
