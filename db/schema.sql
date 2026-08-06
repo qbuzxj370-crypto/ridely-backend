@@ -147,8 +147,8 @@ COMMENT ON TABLE national_bike_route IS '국토종주 자전거 13길. CSV의 �
 
 
 -- ============================================================
--- 5. route_facility : 자전거길 주변 시설 (인증센터/화장실/급수대)
---    소스: 행정안전부_자전거길 DB (CSV 파일, 위와 동일)
+-- 5. route_facility : 자전거길 주변 시설 (인증센터/화장실/급수대/공기주입기)
+--    소스: 행정안전부_자전거길 DB (CSV 파일, 위와 동일) + 서울시 자전거 편의시설 API(tvBicycleEtc, AIR_PUMP)
 --    급수대가 여기 포함되므로 별도 water_fountain 테이블 불필요
 -- ============================================================
 CREATE TABLE route_facility (
@@ -158,38 +158,39 @@ CREATE TABLE route_facility (
     facility_name           VARCHAR(200),
     geom                    GEOMETRY(Point, 4326)    NOT NULL,
     created_at              TIMESTAMPTZ              DEFAULT NOW() NOT NULL,
-    CONSTRAINT chk_facility_type CHECK (facility_type IN ('CERT_CENTER','TOILET','WATER','ETC'))
+    CONSTRAINT chk_facility_type CHECK (facility_type IN ('CERT_CENTER','TOILET','WATER','AIR_PUMP','ETC'))
 );
 
 CREATE INDEX idx_facility_geom_gist ON route_facility USING GIST (geom);
 CREATE INDEX idx_facility_type      ON route_facility (facility_type);
 CREATE INDEX idx_facility_route     ON route_facility (national_bike_route_id);
 
-COMMENT ON COLUMN route_facility.facility_type IS 'CERT_CENTER(인증센터) / TOILET(화장실) / WATER(급수대) / ETC(기타)';
+COMMENT ON COLUMN route_facility.facility_type IS 'CERT_CENTER(인증센터) / TOILET(화장실) / WATER(급수대) / AIR_PUMP(공기주입기) / ETC(기타)';
 
 
 -- ============================================================
 -- 6. bike_parking : 자전거 보관소
---    소스: 국토교통부_전국자전거보관소 (V-World WMS/WFS)
---    data.go.kr/data/15059118
+--    소스: 행안부 자전거보관소정보 조회서비스 (data.go.kr/data/15059118)
+--    매일 갱신되며 MNG_NO 기준 UPSERT.
 --    주의: 보관소(주차 거치대)이며 따릉이 대여소가 아님.
 --          따릉이 대여소가 필요하면 서울열린데이터광장 API를 별도 소스로 추가.
---    WFS Point 피처 + 속성. 레이어 속성 스키마가 유동적이라 raw_attrs로 원본 보존.
 -- ============================================================
 CREATE TABLE bike_parking (
     bike_parking_id    BIGSERIAL                PRIMARY KEY,
     region_id          BIGINT                   REFERENCES region(region_id),  -- 좌표 역매핑, 실패 시 NULL
+    mgmt_no            VARCHAR(30)              NOT NULL UNIQUE,               -- 행안부 관리번호(MNG_NO). 재적재 idempotency
     parking_name       VARCHAR(200),
     geom               GEOMETRY(Point, 4326)    NOT NULL,
     mgmt_agency        VARCHAR(100),
-    raw_attrs          JSONB,                                                  -- WFS 속성 원본
+    raw_attrs          JSONB,                                                  -- 원본 속성 보존
     created_at         TIMESTAMPTZ              DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_parking_geom_gist ON bike_parking USING GIST (geom);
 CREATE INDEX idx_parking_region    ON bike_parking (region_id);
 
-COMMENT ON TABLE bike_parking IS 'V-World WFS 자전거보관소 레이어. 같은 WFS의 자전거길(라인)/자전거길노드 레이어는 bike_road.line_geom 보강용으로 활용.';
+COMMENT ON TABLE bike_parking IS '행안부 자전거보관소정보 조회서비스(전국 자치단체 취합). 매일 갱신되며 MNG_NO 기준 UPSERT.';
+COMMENT ON COLUMN bike_parking.mgmt_no IS '행안부 관리번호(MNG_NO). 매일 갱신되는 소스라 이 값 기준으로 UPSERT한다.';
 
 
 -- ============================================================
@@ -490,8 +491,8 @@ COMMENT ON COLUMN riding_history_embedding.preference_text IS '"{distance}km {in
 --   2. accident_zone             (TAAS 자전거 사고다발지역, API 15056681)
 --   3. bike_road                 (전국자전거도로표준데이터, 15100063)
 --   4. national_bike_route       (행안부 자전거길 DB 국토종주 13길, 3038533)
---   5. route_facility            (자전거길 주변 시설: 인증센터/화장실/급수대, 3038533)
---   6. bike_parking              (V-World WFS 자전거보관소, 15059118)
+--   5. route_facility            (자전거길 주변 시설: 인증센터/화장실/급수대/공기주입기, 3038533)
+--   6. bike_parking              (행안부 자전거보관소정보 조회서비스, 15059118)
 --   7. tour_attraction           (관광공사 국문 관광정보 서비스_GW, 15101578)
 --   8. bike_station              (따릉이 대여소, 서울열린데이터광장)
 --   9. repair_shop               (자치구 수리센터, 자치구별 데이터)

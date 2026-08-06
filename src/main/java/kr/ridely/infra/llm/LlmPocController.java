@@ -2,6 +2,7 @@ package kr.ridely.infra.llm;
 
 import kr.ridely.common.ApiResponse;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,9 +16,12 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * Fallback: Google Gen AI Starter 이슈 시 vertex-ai-gemini Starter로 전환 (ADR-003).
  * 검증 완료 후: LlmClient 인터페이스 추상화(2~3주차)로 발전, 이 컨트롤러는 삭제.
+ *
+ * GOOGLE_API_KEY가 없으면 등록 자체를 건너뛴다 (로컬에서 AI 기능 없이 기동 가능하도록).
  */
 @RestController
 @RequestMapping("/api/v1/poc/llm")
+@ConditionalOnProperty(name = "GOOGLE_API_KEY")
 public class LlmPocController {
 
     private final ChatClient chatClient;
