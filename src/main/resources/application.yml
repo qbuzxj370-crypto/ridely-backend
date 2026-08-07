@@ -168,9 +168,15 @@ ridely:
       taas:
         base-url: https://opendata.koroad.or.kr/api
         service-key: ${TAAS_SERVICE_KEY:}
+      # 서울 열린데이터광장. 공공데이터포털과 다른 기관이라 인증키도 별도다.
+      # 따릉이 대여소·자전거 편의시설(거치대·공기주입기·수리센터) 소스.
       seoul:
+        # https 미지원. 포트까지 포함해야 한다
         base-url: http://openapi.seoul.go.kr:8088
         api-key: ${SEOUL_OPEN_API_KEY:}
+        timeout-seconds: 20
+        # 1회 요청 상한. 초과하면 ERROR-336을 돌려준다
+        max-rows-per-call: 1000
 
   # MVP 서비스 범위: 한강 자전거길 서울 구간 (아라한강갑문~잠실, 약 40km)
   # TourAPI·POI 배치 적재와 코스 추천 서비스 영역 판정에 사용 (bounding box)
