@@ -154,6 +154,20 @@ ridely:
           - { name: "잠원한강공원",   lng: 127.0300, lat: 37.5170 }
           - { name: "뚝섬한강공원",   lng: 127.0700, lat: 37.5290 }
           - { name: "잠실한강공원",   lng: 127.0820, lat: 37.5180 }
+    # ★ 임시 스파이크 — 한국관광공사 두루누비 정보 서비스 (TourAPI 계열, 서비스ID Durunubi).
+    # 자전거길 코스와 GPX 경로를 제공한다. 행안부 CSV + 거리 휴리스틱을 대체할 수 있는지 판정 중.
+    # 기각되면 이 블록과 infra/durunubi 패키지를 함께 삭제한다.
+    #
+    # service-key: data.go.kr은 계정당 인증키 하나를 승인된 모든 서비스에 공용으로 쓴다.
+    #              그래서 TOUR_API_KEY를 그대로 물려받되, 별도 키가 필요하면 DURUNUBI_API_KEY로 덮는다.
+    durunubi:
+      base-url: https://apis.data.go.kr/B551011/Durunubi
+      service-key: ${DURUNUBI_API_KEY:${TOUR_API_KEY:}}
+      timeout-seconds: 15
+      # GPX는 본문이 커서 API보다 넉넉히 준다
+      gpx-timeout-seconds: 30
+      # 1회 실행당 GPX 다운로드 상한. durunubi.kr에 헛부하를 주지 않기 위한 안전장치
+      max-gpx-downloads: 60
     ors:
       base-url: https://api.openrouteservice.org
       api-key: ${ORS_API_KEY:}
