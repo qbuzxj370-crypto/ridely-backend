@@ -126,6 +126,16 @@ ridely:
     refresh-token-validity-seconds: 1209600   # 14일
     issuer: ridely
 
+  # 공공데이터 원본 파일 경로.
+  # 이 파일들은 저장소에 커밋하지 않는다(db/seed/는 .gitignore 대상).
+  # 각자 공공데이터포털에서 내려받아 배치한다 — docs/shared/DATA_SOURCES.md 3장 참조.
+  #
+  # 파일명에 한글이 들어가는데 자바는 파일명 인코딩에 sun.jnu.encoding(OS 로케일)을 쓴다.
+  # 환경에 따라 이름을 조정해야 할 수 있어 코드가 아닌 설정으로 뺐다.
+  seed:
+    bike-route-coords: db/seed/국토종주_자전거길_노선좌표.csv
+    bike-route-facilities: db/seed/국토종주자전거길_주변시설_좌표정보.csv
+
   # 외부 API
   external:
     # 한국관광공사 TourAPI ★ 관광데이터 공모전 핵심
