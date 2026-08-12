@@ -129,21 +129,26 @@ COMMENT ON COLUMN bike_road.road_type IS '자전거전용도로 / 자전거보�
 -- 4. national_bike_route : 국토종주 자전거길 (13개 노선)
 --    소스: 행정안전부_자전거길 DB (CSV 파일)
 --    data.go.kr/data/3038533
---    도로 위경도 좌표 시퀀스 → 적재 시 LineString으로 변환
+--    도로 위경도 좌표 시퀀스 → 적재 시 MultiLineString으로 변환.
+--    13개 중 5개 노선이 여러 갈래(우회로·양안 병렬 등)로 나뉘어 있어
+--    좌표를 순서대로 이으면 최대 152km짜리 가짜 직선이 생긴다.
+--    좌표 간격 3km 초과 시 파트를 분리해 별도 LineString으로 담는다.
+--    SCHEMA_CHANGE_ROUTE_GEOM.md 참조.
 -- ============================================================
 CREATE TABLE national_bike_route (
     national_bike_route_id  BIGSERIAL                        PRIMARY KEY,
     route_name              VARCHAR(100)                     NOT NULL UNIQUE,  -- 예: 한강종주자전거길
     start_desc              VARCHAR(200),                                      -- 예: 아라한강갑문
     end_desc                VARCHAR(200),                                      -- 예: 충주댐
-    total_length_km         NUMERIC(6,1),                                      -- 예: 192.0
-    line_geom               GEOMETRY(LineString, 4326)       NOT NULL,         -- 좌표 시퀀스 변환
+    total_length_km         NUMERIC(6,1),                                      -- 공식 안내 거리 (계산값 아님). 예: 192.0
+    line_geom               GEOMETRY(MultiLineString, 4326)  NOT NULL,         -- 좌표 시퀀스 변환 (3km 초과 간격에서 파트 분리)
     created_at              TIMESTAMPTZ                      DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_natroute_line_gist ON national_bike_route USING GIST (line_geom);
 
-COMMENT ON TABLE national_bike_route IS '국토종주 자전거 13길. CSV의 도로 위경도 시퀀스를 ST_MakeLine으로 변환 적재. 전국 노선이라 region FK 없음.';
+COMMENT ON TABLE national_bike_route IS '국토종주 자전거 13길. CSV의 도로 위경도 시퀀스를 변환 적재. 전국 노선이라 region FK 없음. 노선이 여러 갈래로 나뉘어 있어 MultiLineString으로 저장한다(좌표 간격 3km 초과 시 파트 분리).';
+COMMENT ON COLUMN national_bike_route.total_length_km IS '자전거행복나눔 공식 안내 거리. ST_Length(line_geom) 계산값이 아니다 — 노선마다 계산 범위가 달라 계산값은 기준이 통일되지 않는다. 한강종주는 남한강 포함 종주 전체(192km) 기준이며 line_geom은 서울 구간만 담아 실제 형상 길이(약 94.6km)와 다르다.';
 
 
 -- ============================================================
