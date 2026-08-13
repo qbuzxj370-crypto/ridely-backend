@@ -197,9 +197,21 @@ ridely:
       js-api-key: ${KAKAO_JS_API_KEY:}
       timeout-seconds: 5
     public-data-portal:
+      # 도로교통공단 자전거 교통사고 다발지역 (data.go.kr/data/15056681).
+      #
+      # ⚠️ base-url을 opendata.koroad.or.kr에서 apis.data.go.kr로 바꿨다.
+      #    전자는 도로교통공단 자체 포털이고, 우리가 활용신청하고 실호출로 검증한 것은
+      #    공공데이터포털 경유 경로다 — docs/shared/DATA_SOURCES.md 2.5
       taas:
-        base-url: https://opendata.koroad.or.kr/api
+        base-url: https://apis.data.go.kr/B552061
         service-key: ${TAAS_SERVICE_KEY:}
+        timeout-seconds: 15
+        # 사고년도. TAAS는 연도별로 데이터를 나눠 제공하고 갱신주기가 연 1회다.
+        # 활용가이드 3.1 기준 최신은 2024. 새 연도가 나오면 이 값만 올린다.
+        search-year: 2024
+        # 1회 요청 건수. 활용가이드상 응답 상한이 16,000 byte인데
+        # geom_json 한 건이 최대 4,000 byte라 크게 잡으면 잘린다.
+        max-rows-per-call: 10
       # 서울 열린데이터광장. 공공데이터포털과 다른 기관이라 인증키도 별도다.
       # 따릉이 대여소·자전거 편의시설(거치대·공기주입기·수리센터) 소스.
       seoul:
