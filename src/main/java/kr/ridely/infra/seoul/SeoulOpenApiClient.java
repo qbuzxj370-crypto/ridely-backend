@@ -36,6 +36,9 @@ public class SeoulOpenApiClient {
     /** 자전거 편의시설 서비스명 (거치대·공기주입기·수리센터 통합 제공) */
     private static final String SERVICE_BICYCLE_ETC = "tvBicycleEtc";
 
+    /** 따릉이 대여소 서비스명. ⚠️ JSON 루트 키는 이것과 다른 "stationInfo"다 */
+    private static final String SERVICE_STATION_INFO = "tbCycleStationInfo";
+
     /** 정상 처리 코드 */
     private static final String RESULT_CODE_OK = "INFO-000";
 
@@ -80,8 +83,35 @@ public class SeoulOpenApiClient {
      * @return 수집된 전체 행. 순서는 API 응답 순서를 유지한다
      */
     public List<SeoulBicycleEtcResponse.Row> fetchAllBicycleEtc() {
+        return fetchAll(SERVICE_BICYCLE_ETC, SeoulBicycleEtcResponse.class, "자전거 편의시설");
+    }
+
+    /**
+     * 따릉이 대여소 전량 수집 (약 3,237건).
+     *
+     * ⚠️ 서비스명은 {@code tbCycleStationInfo}인데 <b>JSON 루트 키는 {@code stationInfo}</b>다.
+     * 응답 모델({@link SeoulStationResponse})이 그렇게 매핑돼 있다.
+     */
+    public List<SeoulStationResponse.Row> fetchAllStations() {
+        return fetchAll(SERVICE_STATION_INFO, SeoulStationResponse.class, "따릉이 대여소");
+    }
+
+    /**
+     * 서비스 하나를 전량 수집한다.
+     *
+     * 1회 호출 상한(1,000건)을 넘는 데이터라 구간을 나눠 반복 호출하고,
+     * 첫 응답의 총 건수를 보고 필요한 만큼만 더 요청한다.
+     * 페이지네이션·오류 판별이 전 서비스 동일하므로 한곳에 모았다.
+     *
+     * @param serviceName API 서비스명 (URL 경로에 들어간다)
+     * @param type        응답 모델
+     * @param label       로그용 이름
+     */
+    private <R, T extends SeoulApiResponse<R>> List<R> fetchAll(
+            String serviceName, Class<T> type, String label) {
+
         int pageSize = properties.maxRowsPerCall();
-        List<SeoulBicycleEtcResponse.Row> collected = new ArrayList<>();
+        List<R> collected = new ArrayList<>();
 
         int totalCount = Integer.MAX_VALUE;
         for (int page = 0; page < MAX_PAGES; page++) {
@@ -90,33 +120,36 @@ public class SeoulOpenApiClient {
                 break;
             }
 
-            SeoulBicycleEtcResponse response = fetchBicycleEtc(startIndex, startIndex + pageSize - 1);
+            T response = fetchPage(serviceName, type, startIndex, startIndex + pageSize - 1);
             totalCount = response.totalCount();
 
-            List<SeoulBicycleEtcResponse.Row> rows = response.rows();
+            List<R> rows = response.rows();
             if (rows.isEmpty()) {
                 break;
             }
             collected.addAll(rows);
 
-            log.debug("서울 자전거 편의시설 수집: {}~{} → {}건 (누적 {}/{})",
-                    startIndex, startIndex + rows.size() - 1, rows.size(), collected.size(), totalCount);
+            log.debug("서울 {} 수집: {}~{} → {}건 (누적 {}/{})",
+                    label, startIndex, startIndex + rows.size() - 1, rows.size(),
+                    collected.size(), totalCount);
         }
 
-        log.info("서울 자전거 편의시설 수집 완료: {}건", collected.size());
+        log.info("서울 {} 수집 완료: {}건", label, collected.size());
         return collected;
     }
 
     /**
-     * 자전거 편의시설 구간 조회.
+     * 구간 조회.
      *
      * @param startIndex 시작 위치 (1부터)
      * @param endIndex   종료 위치 (포함). startIndex와의 차이가 1,000을 넘으면 ERROR-336
      */
-    public SeoulBicycleEtcResponse fetchBicycleEtc(int startIndex, int endIndex) {
+    private <R, T extends SeoulApiResponse<R>> T fetchPage(
+            String serviceName, Class<T> type, int startIndex, int endIndex) {
+
         String body = webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .pathSegment(properties.apiKey(), "json", SERVICE_BICYCLE_ETC,
+                        .pathSegment(properties.apiKey(), "json", serviceName,
                                 String.valueOf(startIndex), String.valueOf(endIndex))
                         .build())
                 .retrieve()
@@ -124,7 +157,7 @@ public class SeoulOpenApiClient {
                 .timeout(Duration.ofSeconds(properties.timeoutSeconds()))
                 .block();
 
-        return parse(body);
+        return parse(body, type);
     }
 
     /**
@@ -133,7 +166,7 @@ public class SeoulOpenApiClient {
      * 인증 실패·파라미터 오류는 HTTP 200에 XML 본문으로 내려오기 때문에
      * 상태 코드 검사로는 걸러지지 않는다. 본문을 직접 확인해야 한다.
      */
-    private SeoulBicycleEtcResponse parse(String body) {
+    private <R, T extends SeoulApiResponse<R>> T parse(String body, Class<T> type) {
         if (body == null || body.isBlank()) {
             log.error("서울 열린데이터광장 응답이 비어 있음");
             throw new BusinessException(ErrorCode.COMMON_500);
@@ -144,9 +177,9 @@ public class SeoulOpenApiClient {
             throw new BusinessException(ErrorCode.COMMON_500);
         }
 
-        SeoulBicycleEtcResponse parsed;
+        T parsed;
         try {
-            parsed = objectMapper.readValue(body, SeoulBicycleEtcResponse.class);
+            parsed = objectMapper.readValue(body, type);
         } catch (Exception e) {
             log.error("서울 열린데이터광장 응답 파싱 실패: {}", abbreviate(body), e);
             throw new BusinessException(ErrorCode.COMMON_500);

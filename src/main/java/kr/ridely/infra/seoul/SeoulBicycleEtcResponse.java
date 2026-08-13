@@ -32,7 +32,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SeoulBicycleEtcResponse {
+public class SeoulBicycleEtcResponse implements SeoulApiResponse<SeoulBicycleEtcResponse.Row> {
 
     @JsonProperty("tvBicycleEtc")
     private Service service;
