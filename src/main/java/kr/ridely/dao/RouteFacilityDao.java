@@ -32,6 +32,26 @@ public class RouteFacilityDao {
      * @return 실제로 INSERT된 건수. 중복이라 건너뛴 건은 세지 않는다
      */
     public int insertIgnoringDuplicates(List<Facility> facilities) {
+        int inserted = 0;
+        for (Facility facility : facilities) {
+            inserted += insertIgnoringDuplicate(
+                    facility.getFacilityType(), facility.getName(),
+                    facility.getLng(), facility.getLat());
+        }
+        return inserted;
+    }
+
+    /**
+     * 시설 한 건을 저장한다. 이미 있으면 건너뛴다.
+     *
+     * <p>파일이 아닌 소스(서울시 자전거 편의시설 API의 AIR_PUMP)도 이 테이블을 쓰므로
+     * 리더의 DTO에 묶이지 않는 단건 진입점을 열어 둔다. 자연키가 같으므로
+     * 소스가 섞여도 중복이 쌓이지 않는다.
+     *
+     * @return 1이면 저장, 0이면 이미 있어 건너뜀
+     */
+    public int insertIgnoringDuplicate(String facilityType, String facilityName,
+                                       double lng, double lat) {
 
         /*
          * [핵심 구문]
@@ -41,28 +61,22 @@ public class RouteFacilityDao {
          *                              geom 컬럼 제약(4326)에 걸린다.
          *   ON CONFLICT DO NOTHING     uq_facility_natural(종류·이름·좌표) 기준 멱등.
          *                              이 테이블은 CSV와 서울시 API가 함께 쓰므로
-         *                              DELETE 후 INSERT를 쓸 수 없다. 상세는 schema.sql 주석
+         *                              DELETE 후 INSERT를 쓸 수 없다. 상세는 V1 스키마 주석
          */
-        String sql = """
-                INSERT INTO route_facility (facility_type, facility_name, geom)
-                VALUES (
-                    :facilityType,
-                    :facilityName,
-                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
-                )
-                ON CONFLICT DO NOTHING
-                """;
-
-        int inserted = 0;
-        for (Facility facility : facilities) {
-            inserted += jdbcClient.sql(sql)
-                    .param("facilityType", facility.getFacilityType())
-                    .param("facilityName", facility.getName())
-                    .param("lng", facility.getLng())
-                    .param("lat", facility.getLat())
-                    .update();
-        }
-        return inserted;
+        return jdbcClient.sql("""
+                        INSERT INTO route_facility (facility_type, facility_name, geom)
+                        VALUES (
+                            :facilityType,
+                            :facilityName,
+                            ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+                        )
+                        ON CONFLICT DO NOTHING
+                        """)
+                .param("facilityType", facilityType)
+                .param("facilityName", facilityName)
+                .param("lng", lng)
+                .param("lat", lat)
+                .update();
     }
 
     /**
