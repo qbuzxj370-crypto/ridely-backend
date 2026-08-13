@@ -1,7 +1,10 @@
 package kr.ridely.infra.seoul;
 
 import kr.ridely.common.ApiResponse;
+import kr.ridely.dto.poi.SeoulFacilityIngestResultDTO;
+import kr.ridely.service.SeoulFacilityIngestService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -48,9 +51,26 @@ public class SeoulBicycleEtcPocController {
     private static final int SAMPLE_SIZE = 5;
 
     private final SeoulOpenApiClient seoulOpenApiClient;
+    private final SeoulFacilityIngestService seoulFacilityIngestService;
 
-    public SeoulBicycleEtcPocController(SeoulOpenApiClient seoulOpenApiClient) {
+    public SeoulBicycleEtcPocController(SeoulOpenApiClient seoulOpenApiClient,
+                                        SeoulFacilityIngestService seoulFacilityIngestService) {
         this.seoulOpenApiClient = seoulOpenApiClient;
+        this.seoulFacilityIngestService = seoulFacilityIngestService;
+    }
+
+    /**
+     * 공기주입기·수리센터를 적재한다.
+     *
+     * <p>공기주입기는 route_facility(AIR_PUMP), 수리센터는 repair_shop으로 나눠 들어간다.
+     * 거치대·보관대는 넣지 않는다 — bike_parking 소스는 행안부 API로 확정돼 있다.
+     *
+     * <p>두 테이블 모두 자연키 UNIQUE가 있어 여러 번 실행해도 중복이 쌓이지 않는다.
+     * 응답의 repairShops 목록은 23건뿐이니 적재 후 눈으로 한 번 훑어볼 것.
+     */
+    @PostMapping("/ingest")
+    public ApiResponse<SeoulFacilityIngestResultDTO> ingest() {
+        return ApiResponse.ok(seoulFacilityIngestService.ingestSeoulFacilities());
     }
 
     /**
