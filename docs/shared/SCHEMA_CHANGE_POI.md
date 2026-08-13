@@ -1,6 +1,9 @@
 # 스키마 변경 제안 — POI 인프라 적재
 
 > 대상: `db/schema.sql` (v1.1) | 변경 2건 | 작성 사유: 자전거 인프라 POI 적재 착수
+>
+> ⚠️ **경로 변경 (2026-08-12)**: 정본 DDL은 `db/schema.sql`에서 **`src/main/resources/db/migration/V1__initial_schema.sql`** 로 이동했다.
+> Flyway가 앱 기동 시 자동 적용하므로 아래 "팀원 수동 실행" 절차는 더 이상 필요 없다. 본문의 `db/schema.sql` 언급은 작성 당시 기준이다.
 
 ---
 
