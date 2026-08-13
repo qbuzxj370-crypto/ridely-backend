@@ -20,8 +20,8 @@ public class BikeStationDao {
     /**
      * 대여소를 저장하거나 갱신한다.
      *
-     * <p>다른 적재와 달리 {@code DO NOTHING}이 아니라 <b>{@code DO UPDATE}</b>다.
-     * 대여소는 1회성 시드가 아니라 <b>운영 중 바뀌는 마스터</b>라서다 —
+     * 다른 적재와 달리 {@code DO NOTHING}이 아니라 {@code DO UPDATE}다.
+     * 대여소는 1회성 시드가 아니라 운영 중 바뀌는 마스터라서다 —
      * 이전·개명·거치대 증설이 실제로 일어난다. RENT_ID가 고유키라 갱신이 안전하다.
      *
      * @param regionCode 지역 코드(서울=11). region에 없으면 NULL
@@ -69,14 +69,14 @@ public class BikeStationDao {
     /**
      * 이번 회차에 응답에 없던 대여소를 비활성으로 돌린다.
      *
-     * <p>API는 운영 중인 대여소만 돌려준다. 폐쇄된 대여소를 그냥 두면
+     * API는 운영 중인 대여소만 돌려준다. 폐쇄된 대여소를 그냥 두면
      * 지도에 없는 대여소가 계속 뜬다. 그렇다고 삭제하면 과거 라이딩 기록의 참조가 끊긴다.
      *
-     * <p>판정은 {@code updated_at}으로 한다. 이번 트랜잭션에서 upsert된 행은
+     * 판정은 {@code updated_at}으로 한다. 이번 트랜잭션에서 upsert된 행은
      * {@code updated_at = NOW()}(트랜잭션 시작 시각)이고, 응답에 없던 행은 그보다 과거다.
      * 별도 목록을 넘길 필요가 없다.
      *
-     * <p>다시 나타나면 upsert가 {@code is_active = TRUE}로 되돌린다.
+     * 다시 나타나면 upsert가 {@code is_active = TRUE}로 되돌린다.
      *
      * @return 상태가 바뀐 행 수 (활성→비활성, 비활성→활성 모두 포함)
      */

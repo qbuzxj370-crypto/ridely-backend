@@ -11,9 +11,9 @@ import org.testcontainers.utility.DockerImageName;
  * 통합 테스트 공통 베이스.
  *
  * PostGIS·pgvector가 포함된 빈 PostgreSQL 컨테이너를 띄우고,
- * 스키마는 <b>Flyway가 기동 시 적용한다</b>(src/main/resources/db/migration).
+ * 스키마는 Flyway가 기동 시 적용한다(src/main/resources/db/migration).
  *
- * <p>테스트가 개발·운영과 <b>같은 마이그레이션 경로</b>를 타는 것이 핵심이다.
+ * 테스트가 개발·운영과 같은 마이그레이션 경로를 타는 것이 핵심이다.
  * 이전에는 테스트만 db/schema.sql로 컨테이너를 초기화하고 개발 DB는 손으로 고쳐서,
  * 스키마가 어긋나도 테스트는 통과하고 개발만 깨졌다. 실제로 두 번 그랬다.
  *

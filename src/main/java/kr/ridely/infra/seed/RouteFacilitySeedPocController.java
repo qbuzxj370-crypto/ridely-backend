@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * POST /api/v1/poc/seed/route-facilities  인증센터·화장실·급수대·공기주입기 적재
  *
- * <p>⚠️ <b>노선 적재를 먼저 실행해야 한다</b>(POST /api/v1/poc/seed/bike-routes).
+ * ⚠️ 노선 적재를 먼저 실행해야 한다(POST /api/v1/poc/seed/bike-routes).
  * 원본 CSV에 노선 코드가 없어 좌표로 노선을 찾는데, 노선이 비어 있으면
  * 시설은 들어가되 national_bike_route_id가 전부 NULL로 남는다.
  * 순서를 놓쳤으면 노선 적재 후 이 엔드포인트를 다시 부르면 연결만 다시 계산된다.
  *
- * <p>파일이 db/seed/에 없으면 실패한다. 배치 방법은 docs/shared/DATA_SOURCES.md 참조.
+ * 파일이 db/seed/에 없으면 실패한다. 배치 방법은 docs/shared/DATA_SOURCES.md 참조.
  */
 @RestController
 @RequestMapping("/api/v1/poc/seed")

@@ -20,7 +20,7 @@ public class RouteFacilityIngestServiceImpl implements RouteFacilityIngestServic
      * 노선 형상 자체가 파트로 갈려 있고 좌표 간격도 일정하지 않아 여유를 둔다.
      * 이 안에 노선이 없으면 연결하지 않고 NULL로 남긴다.
      *
-     * <p>연결률은 적재 응답의 linkedCount로 확인한다. 지나치게 낮으면 이 값을 조정하되,
+     * 연결률은 적재 응답의 linkedCount로 확인한다. 지나치게 낮으면 이 값을 조정하되,
      * 넓힐수록 엉뚱한 노선에 붙을 위험이 커진다는 점을 감안한다.
      */
     private static final int LINK_RADIUS_M = 500;

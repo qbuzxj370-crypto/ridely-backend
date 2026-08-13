@@ -14,7 +14,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   sun.jnu.encoding(OS 로케일)을 사용한다. 환경에 따라 이름을 조정해야 할 수 있으므로
  *   설정 한 곳만 고치면 되도록 뺐다.
  *
- * ※ 여기서 다루는 것은 <b>파일명</b> 인코딩이다. 파일 <b>내용</b>의 인코딩은 설정하지 않는다.
+ * ※ 여기서 다루는 것은 파일명 인코딩이다. 파일 내용의 인코딩은 설정하지 않는다.
  *   원본 배포본은 CP949지만 편집기에서 열어 저장하면 UTF-8로 바뀌므로 고정할 수 없다.
  *   리더가 읽는 시점에 판별한다 — BikeRouteCsvReader 클래스 주석 참조.
  *

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 자전거길 주변시설 적재 통합 테스트.
  *
  * 파싱 자체는 {@code RouteFacilityCsvReaderTest}가 맡는다.
- * 여기서는 <b>영속·좌표 기반 노선 연결·멱등성</b>만 본다.
+ * 여기서는 영속·좌표 기반 노선 연결·멱등성만 본다.
  */
 class RouteFacilityIngestTest extends AbstractIntegrationTest {
 
@@ -38,14 +38,12 @@ class RouteFacilityIngestTest extends AbstractIntegrationTest {
             """;
 
     /**
-     * 시설 픽스처. <b>3열이 경도, 4열이 위도</b>다.
+     * 시설 픽스처. 3열이 경도, 4열이 위도다.
      *
-     * <ul>
-     *   <li>인증센터 : 아라 노선에서 약 90m → 연결돼야 한다</li>
-     *   <li>화장실   : 한강종주 노선에서 약 30m → 연결돼야 한다</li>
-     *   <li>급수대   : 부산 앞바다. 어느 노선에서도 멀다 → NULL로 남아야 한다</li>
-     *   <li>마지막 행 : 화장실과 완전 중복 → 제거돼야 한다</li>
-     * </ul>
+     * - 인증센터 : 아라 노선에서 약 90m → 연결돼야 한다
+     * - 화장실   : 한강종주 노선에서 약 30m → 연결돼야 한다
+     * - 급수대   : 부산 앞바다. 어느 노선에서도 멀다 → NULL로 남아야 한다
+     * - 마지막 행 : 화장실과 완전 중복 → 제거돼야 한다
      */
     private static final String FACILITIES_CSV = """
             구분,이름,경도,위도

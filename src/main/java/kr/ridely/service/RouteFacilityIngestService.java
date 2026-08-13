@@ -14,8 +14,8 @@ public interface RouteFacilityIngestService {
      * db/seed/의 주변시설 CSV를 읽어 route_facility에 적재하고,
      * 각 시설을 가장 가까운 국토종주 노선에 연결한다.
      *
-     * <p>자연키(종류·이름·좌표) 기준으로 중복을 건너뛰므로 여러 번 실행해도 쌓이지 않는다.
-     * <p>연결을 채우려면 national_bike_route가 <b>먼저</b> 적재돼 있어야 한다.
+     * 자연키(종류·이름·좌표) 기준으로 중복을 건너뛰므로 여러 번 실행해도 쌓이지 않는다.
+     * 연결을 채우려면 national_bike_route가 먼저 적재돼 있어야 한다.
      */
     RouteFacilityIngestResultDTO ingestRouteFacilities();
 }

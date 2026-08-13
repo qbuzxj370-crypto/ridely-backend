@@ -13,20 +13,18 @@ import java.util.List;
 /**
  * 서울 열린데이터광장 "서울시 공공자전거 대여소 정보"(tbCycleStationInfo) 응답 구조.
  *
- * <p>⚠️ <b>JSON 루트 키가 서비스명과 다르다.</b> 서비스명은 {@code tbCycleStationInfo}인데
+ * ⚠️ JSON 루트 키가 서비스명과 다르다. 서비스명은 {@code tbCycleStationInfo}인데
  * 응답 루트는 {@code stationInfo}다. 서비스명으로 찾으면 전 건 파싱에 실패한다
  * — docs/shared/DATA_SOURCES.md 2.4
  *
- * <pre>
  *   { "stationInfo": { "list_total_count": 3237,
  *                      "RESULT": { "CODE": "INFO-000", "MESSAGE": "정상 처리되었습니다" },
  *                      "row": [ ... ] } }
- * </pre>
  *
- * <p>※ 이 클래스는 외부 API의 응답 형태일 뿐 우리 API 계약이 아니므로
+ * ※ 이 클래스는 외부 API의 응답 형태일 뿐 우리 API 계약이 아니므로
  *   dto 패키지가 아닌 infra/seoul에 둔다.
  *
- * <p>※ 좌표·거치대 수를 포함해 모든 값이 문자열로 온다. 타입 변환은 사용하는 쪽에서 한다.
+ * ※ 좌표·거치대 수를 포함해 모든 값이 문자열로 온다. 타입 변환은 사용하는 쪽에서 한다.
  */
 @Getter
 @Setter

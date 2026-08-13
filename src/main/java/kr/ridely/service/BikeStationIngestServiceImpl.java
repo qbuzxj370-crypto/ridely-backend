@@ -31,8 +31,8 @@ public class BikeStationIngestServiceImpl implements BikeStationIngestService {
     /**
      * 한 트랜잭션으로 처리한다.
      *
-     * <p>비활성 판정이 {@code updated_at >= NOW()}에 기대는데, PostgreSQL의 {@code NOW()}는
-     * <b>트랜잭션 시작 시각</b>이라 같은 트랜잭션 안에서 값이 고정된다.
+     * 비활성 판정이 {@code updated_at >= NOW()}에 기대는데, PostgreSQL의 {@code NOW()}는
+     * 트랜잭션 시작 시각이라 같은 트랜잭션 안에서 값이 고정된다.
      * 트랜잭션을 나누면 upsert 시각이 제각각이 되어 판정이 깨진다.
      */
     @Override

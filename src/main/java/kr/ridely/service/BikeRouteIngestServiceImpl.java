@@ -32,7 +32,7 @@ public class BikeRouteIngestServiceImpl implements BikeRouteIngestService {
      * 실재하지 않는 직선이 13개 노선 합계 726.7km 생긴다(동해안 강원에서만 241.7km).
      * 좌표 간격이 이 값을 넘으면 갈래가 바뀐 것으로 보고 파트를 나눈다.
      *
-     * <p>3km인 근거: 전체 49,244개 간격의 중앙값이 25m, p99.9가 675m다. 4.5km를 좌표 없이
+     * 3km인 근거: 전체 49,244개 간격의 중앙값이 25m, p99.9가 675m다. 4.5km를 좌표 없이
      * 건너뛰는 실제 경로는 어느 노선에도 없다. 3km 초과와 4km 초과의 개수가 20개로 같아
      * 그 사이가 안정 지대다. 상세·교차검증은 docs/shared/SCHEMA_CHANGE_ROUTE_GEOM.md 4장.
      */
@@ -50,7 +50,7 @@ public class BikeRouteIngestServiceImpl implements BikeRouteIngestService {
      * 남한강자전거길(3)과 제주환상자전거길(13)은 공식 설명에 구간 표기가 없어 null로 둔다.
      * 제주환상은 순환 노선이라 시작·끝 구분 자체가 없다.
      *
-     * <p>⚠️ 거리를 합산하면 안 된다. 공식 정의상 한강종주 192km가 남한강 132km를 포함한다.
+     * ⚠️ 거리를 합산하면 안 된다. 공식 정의상 한강종주 192km가 남한강 132km를 포함한다.
      * 남한강 132km는 팔당대교~충주댐 기준이다(탄금대 기준은 139km).
      */
     private static final Map<Integer, RouteMeta> ROUTE_META = Map.ofEntries(

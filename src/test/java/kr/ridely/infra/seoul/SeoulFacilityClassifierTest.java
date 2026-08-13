@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 서울시 편의시설 분류 규칙 단위 테스트.
  *
  * 판정 근거는 2026-08-12 전량(3,374건) 분포 조사다.
- * 여기 담은 값들은 전부 <b>실제 원본에서 관측된 것</b>이라 임의로 바꾸면 안 된다.
+ * 여기 담은 값들은 전부 실제 원본에서 관측된 것이라 임의로 바꾸면 안 된다.
  */
 class SeoulFacilityClassifierTest {
 

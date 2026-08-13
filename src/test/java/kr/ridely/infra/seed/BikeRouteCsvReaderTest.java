@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * DB나 Spring 컨텍스트가 필요 없는 파싱 로직만 여기서 본다.
  * 적재·영속은 {@code BikeRouteIngestTest}(통합)가 맡는다.
  *
- * <p>인코딩 판별을 여기서 검증하는 이유: 통합 테스트는 파일 경로를
+ * 인코딩 판별을 여기서 검증하는 이유: 통합 테스트는 파일 경로를
  * {@code @DynamicPropertySource}로 한 번만 주입하므로 한 컨텍스트에서
  * 두 인코딩을 시험할 수 없다.
  */
@@ -39,7 +39,7 @@ class BikeRouteCsvReaderTest {
     }
 
     /**
-     * 원본 형식 그대로 <b>3번째 열이 위도, 4번째 열이 경도</b>다.
+     * 원본 형식 그대로 3번째 열이 위도, 4번째 열이 경도다.
      * 검증 목적을 행마다 심어 두었다.
      */
     private static final String NORMAL_CSV = """

@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * 서울 열린데이터광장 OpenAPI 클라이언트.
  *
- * 호출 형태 (GET) — 인증키가 쿼리 파라미터가 아니라 <b>경로</b>에 들어간다:
+ * 호출 형태 (GET) — 인증키가 쿼리 파라미터가 아니라 경로에 들어간다:
  *   {baseUrl}/{인증키}/{json|xml}/{서비스명}/{시작위치}/{종료위치}/
  *
  * ⚠️ 주의:
@@ -89,7 +89,7 @@ public class SeoulOpenApiClient {
     /**
      * 따릉이 대여소 전량 수집 (약 3,237건).
      *
-     * ⚠️ 서비스명은 {@code tbCycleStationInfo}인데 <b>JSON 루트 키는 {@code stationInfo}</b>다.
+     * ⚠️ 서비스명은 {@code tbCycleStationInfo}인데 JSON 루트 키는 {@code stationInfo}다.
      * 응답 모델({@link SeoulStationResponse})이 그렇게 매핑돼 있다.
      */
     public List<SeoulStationResponse.Row> fetchAllStations() {

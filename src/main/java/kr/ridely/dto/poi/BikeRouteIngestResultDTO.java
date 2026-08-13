@@ -77,7 +77,7 @@ public class BikeRouteIngestResultDTO {
         private BigDecimal officialLengthKm;
 
         /**
-         * 저장된 형상에서 ST_Length로 계산한 실측 길이(km). <b>검증용이며 저장되지 않는다.</b>
+         * 저장된 형상에서 ST_Length로 계산한 실측 길이(km). 검증용이며 저장되지 않는다.
          * 공식값과 크게 다른 노선이 셋 있는데 정상이다 —
          * 한강종주 0.49배(공식이 남한강 포함), 북한강 1.61배, 동해안(경북) 1.62배.
          */

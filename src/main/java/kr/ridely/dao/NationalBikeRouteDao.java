@@ -27,7 +27,7 @@ public class NationalBikeRouteDao {
      * @param endDesc          도착 지점 설명. 원본에 없으면 null
      * @param officialLengthKm 자전거행복나눔 공식 안내 거리(km). 계산값이 아니다
      * @param multiLineWkt     MULTILINESTRING((경도 위도, ...), (...)) 형식의 노선 형상
-     * @return 저장된 형상에서 계산한 실측 길이(km). 저장값이 아니라 <b>검증용</b>이다
+     * @return 저장된 형상에서 계산한 실측 길이(km). 저장값이 아니라 검증용이다
      */
     public BigDecimal upsert(String routeName, String startDesc, String endDesc,
                              BigDecimal officialLengthKm, String multiLineWkt) {

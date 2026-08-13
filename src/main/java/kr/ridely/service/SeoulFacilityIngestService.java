@@ -9,7 +9,7 @@ import kr.ridely.dto.poi.SeoulFacilityIngestResultDTO;
  * 한 응답에 거치대·공기주입기·수리센터가 섞여 있고 종류 필드가 없어
  * {@code SeoulFacilityClassifier}로 판정해 두 테이블로 나눠 넣는다.
  *
- * <p>거치대·보관대(약 1,910건)는 적재하지 않는다 —
+ * 거치대·보관대(약 1,910건)는 적재하지 않는다 —
  * bike_parking 소스는 행안부 자전거보관소 API로 확정돼 있다.
  */
 public interface SeoulFacilityIngestService {

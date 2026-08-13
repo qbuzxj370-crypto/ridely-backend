@@ -34,7 +34,7 @@ class RouteFacilityCsvReaderTest {
     }
 
     /**
-     * <b>3열이 경도, 4열이 위도다.</b> 노선좌표 CSV와 반대라 여기서 뒤집히면 좌표가 통째로 어긋난다.
+     * 3열이 경도, 4열이 위도다. 노선좌표 CSV와 반대라 여기서 뒤집히면 좌표가 통째로 어긋난다.
      * 마지막 두 행은 앞 행과 완전히 같은 중복이다.
      */
     private static final String NORMAL_CSV = """
