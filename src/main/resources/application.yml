@@ -26,6 +26,28 @@ spring:
       write-dates-as-timestamps: false
     default-property-inclusion: non_null
 
+  # ===== DB 마이그레이션 (Flyway) =====
+  # 앱 기동 시 src/main/resources/db/migration 의 V*.sql 을 순서대로 적용한다.
+  # 이미 적용된 것은 flyway_schema_history 로 판별해 건너뛴다.
+  # 적용된 마이그레이션 파일은 수정 금지 — 체크섬이 달라지면 기동이 실패한다(의도된 동작).
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 실패 시 조용히 넘어가지 않고 기동을 멈춘다
+    validate-on-migrate: true
+
+    # PostGIS 이미지는 컨테이너 최초 기동 시 확장을 설치하면서 public 스키마에
+    # spatial_ref_sys 테이블과 geometry_columns·geography_columns 뷰를 만든다.
+    # 그래서 볼륨을 지운 새 DB도 Flyway 눈에는 "비어있지 않은 스키마"이고,
+    # 이 옵션이 없으면 "Found non-empty schema but no schema history table" 로 기동이 막힌다.
+    baseline-on-migrate: true
+
+    # ⚠️ 0이어야 한다. 기본값은 1이고, 1로 두면 V1이 "이미 적용됨"으로 표시되어
+    #    건너뛴다 — 테이블이 하나도 생기지 않은 채 기동만 성공한다.
+    #    0으로 두면 baseline(0) 이후인 V1부터 정상 적용된다.
+    baseline-version: 0
+    baseline-description: "postgis bootstrap (spatial_ref_sys)"
+
   # ===== DataSource (PostgreSQL) =====
   # 프로파일별 오버라이드: application-{local|dev|prod}.yml
   datasource:
@@ -126,6 +148,16 @@ ridely:
     refresh-token-validity-seconds: 1209600   # 14일
     issuer: ridely
 
+  # 공공데이터 원본 파일 경로.
+  # 이 파일들은 저장소에 커밋하지 않는다(db/seed/는 .gitignore 대상).
+  # 각자 공공데이터포털에서 내려받아 배치한다 — docs/shared/DATA_SOURCES.md 3장 참조.
+  #
+  # 파일명에 한글이 들어가는데 자바는 파일명 인코딩에 sun.jnu.encoding(OS 로케일)을 쓴다.
+  # 환경에 따라 이름을 조정해야 할 수 있어 코드가 아닌 설정으로 뺐다.
+  seed:
+    bike-route-coords: db/seed/국토종주_자전거길_노선좌표.csv
+    bike-route-facilities: db/seed/국토종주자전거길_주변시설_좌표정보.csv
+
   # 외부 API
   external:
     # 한국관광공사 TourAPI ★ 관광데이터 공모전 핵심
@@ -165,12 +197,30 @@ ridely:
       js-api-key: ${KAKAO_JS_API_KEY:}
       timeout-seconds: 5
     public-data-portal:
+      # 도로교통공단 자전거 교통사고 다발지역 (data.go.kr/data/15056681).
+      #
+      # ⚠️ base-url을 opendata.koroad.or.kr에서 apis.data.go.kr로 바꿨다.
+      #    전자는 도로교통공단 자체 포털이고, 우리가 활용신청하고 실호출로 검증한 것은
+      #    공공데이터포털 경유 경로다 — docs/shared/DATA_SOURCES.md 2.5
       taas:
-        base-url: https://opendata.koroad.or.kr/api
+        base-url: https://apis.data.go.kr/B552061
         service-key: ${TAAS_SERVICE_KEY:}
+        timeout-seconds: 15
+        # 사고년도. TAAS는 연도별로 데이터를 나눠 제공하고 갱신주기가 연 1회다.
+        # 활용가이드 3.1 기준 최신은 2024. 새 연도가 나오면 이 값만 올린다.
+        search-year: 2024
+        # 1회 요청 건수. 활용가이드상 응답 상한이 16,000 byte인데
+        # geom_json 한 건이 최대 4,000 byte라 크게 잡으면 잘린다.
+        max-rows-per-call: 10
+      # 서울 열린데이터광장. 공공데이터포털과 다른 기관이라 인증키도 별도다.
+      # 따릉이 대여소·자전거 편의시설(거치대·공기주입기·수리센터) 소스.
       seoul:
+        # https 미지원. 포트까지 포함해야 한다
         base-url: http://openapi.seoul.go.kr:8088
         api-key: ${SEOUL_OPEN_API_KEY:}
+        timeout-seconds: 20
+        # 1회 요청 상한. 초과하면 ERROR-336을 돌려준다
+        max-rows-per-call: 1000
 
   # MVP 서비스 범위: 한강 자전거길 서울 구간 (아라한강갑문~잠실, 약 40km)
   # TourAPI·POI 배치 적재와 코스 추천 서비스 영역 판정에 사용 (bounding box)

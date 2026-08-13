@@ -98,3 +98,6 @@ keystore.properties
 # 시드 SQL(db/seed/)은 커밋 대상. 원본 CSV·JSON 덤프만 제외
 data/raw/
 *.csv.gz
+
+# 공공데이터 원본 파일 (각자 data.go.kr에서 내려받아 배치)
+db/seed/

@@ -2,6 +2,20 @@
 -- Ridely DDL (PostgreSQL 16+ / PostGIS / pgvector)
 -- ============================================================
 --
+-- ⚠️ 이 파일은 Flyway 마이그레이션이다. 적용된 뒤에는 절대 수정하지 않는다.
+--    Flyway가 체크섬을 검증하므로 고치면 다음 기동이 실패한다.
+--    스키마를 바꾸려면 V2__*.sql 을 새로 만든다.
+--
+--    앱 기동 시 자동 실행된다. psql로 손수 적용하던 방식은 폐기했다 —
+--    schema.sql만 고치고 DB에 반영하지 않아 두 번 사고가 났다.
+--    (line_geom MultiLineString / facility_type AIR_PUMP, 후자는 6일간 잠복)
+--
+--    db/schema.sql에서 이동해 왔다. 정본은 이제 이 파일 하나다.
+--
+--    아래 CREATE EXTENSION은 남겨 둔다. PostGIS 이미지가 이미 설치해 두지만
+--    (그래서 baseline-on-migrate가 필요하다 — application.yml 주석 참조),
+--    다른 이미지나 관리형 DB에서는 없을 수 있다. IF NOT EXISTS라 중복 실행은 안전하다.
+--
 -- 명명 규칙: 테이블명 단수형 (Oracle/PostgreSQL 전통 SQL 컨벤션)
 -- 예외: user_settings (settings는 영어 관용 복수형)
 --
@@ -129,21 +143,30 @@ COMMENT ON COLUMN bike_road.road_type IS '자전거전용도로 / 자전거보�
 -- 4. national_bike_route : 국토종주 자전거길 (13개 노선)
 --    소스: 행정안전부_자전거길 DB (CSV 파일)
 --    data.go.kr/data/3038533
---    도로 위경도 좌표 시퀀스 → 적재 시 LineString으로 변환
+--    도로 위경도 좌표 시퀀스 → 적재 시 MultiLineString으로 변환
+--    (13개 중 5개가 여러 갈래다. 상세: docs/shared/SCHEMA_CHANGE_ROUTE_GEOM.md)
 -- ============================================================
 CREATE TABLE national_bike_route (
     national_bike_route_id  BIGSERIAL                        PRIMARY KEY,
     route_name              VARCHAR(100)                     NOT NULL UNIQUE,  -- 예: 한강종주자전거길
     start_desc              VARCHAR(200),                                      -- 예: 아라한강갑문
     end_desc                VARCHAR(200),                                      -- 예: 충주댐
+    -- 자전거행복나눔 공식 안내 거리. ST_Length 계산값이 아니다.
+    -- 계산값은 노선마다 담긴 범위가 달라 기준이 제각각이다(한강종주 0.49배·북한강 1.61배).
+    -- ⚠️ 노선 간 합산 금지 — 공식 정의상 한강종주 192km가 남한강 132km를 포함한다.
     total_length_km         NUMERIC(6,1),                                      -- 예: 192.0
-    line_geom               GEOMETRY(LineString, 4326)       NOT NULL,         -- 좌표 시퀀스 변환
+    -- 좌표 간격 3km 초과 시 파트를 분리해 적재한다. 잇지 않는 이유는 아래 주석 참조
+    line_geom               GEOMETRY(MultiLineString, 4326)  NOT NULL,
     created_at              TIMESTAMPTZ                      DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_natroute_line_gist ON national_bike_route USING GIST (line_geom);
 
-COMMENT ON TABLE national_bike_route IS '국토종주 자전거 13길. CSV의 도로 위경도 시퀀스를 ST_MakeLine으로 변환 적재. 전국 노선이라 region FK 없음.';
+COMMENT ON TABLE national_bike_route IS
+    '국토종주 자전거 13길. CSV의 도로 위경도 시퀀스를 변환 적재. 전국 노선이라 region FK 없음.
+     노선이 여러 갈래로 나뉘어 있어 MultiLineString으로 저장한다(좌표 간격 3km 초과 시 파트 분리).
+     좌표를 순서대로 이으면 갈래가 바뀌는 자리가 직선으로 메워져 실재하지 않는 경로가 만들어진다
+     — 한강종주는 반포(126.9986,37.5110)에서 갈리는 Y자 분기이고, 이으면 37km 직선이 생긴다.';
 
 
 -- ============================================================
@@ -164,6 +187,14 @@ CREATE TABLE route_facility (
 CREATE INDEX idx_facility_geom_gist ON route_facility USING GIST (geom);
 CREATE INDEX idx_facility_type      ON route_facility (facility_type);
 CREATE INDEX idx_facility_route     ON route_facility (national_bike_route_id);
+
+-- 재적재 멱등성. 이 테이블은 행안부 CSV와 서울시 API 두 소스가 함께 쓰는데
+-- 어느 쪽에도 고유 식별자가 없어 (종류, 이름, 좌표)를 자연키로 삼는다.
+-- 소스별 DELETE 후 INSERT를 쓰지 않는 이유: 두 소스가 AIR_PUMP를 모두 제공해
+-- 한쪽을 지우면 다른 쪽이 날아간다. ON CONFLICT DO NOTHING이면 적재 순서와 무관하다.
+-- facility_name은 NULL이면 유일성 판정에서 빠지므로 COALESCE로 빈 문자열 취급한다.
+CREATE UNIQUE INDEX uq_facility_natural
+    ON route_facility (facility_type, COALESCE(facility_name, ''), geom);
 
 COMMENT ON COLUMN route_facility.facility_type IS 'CERT_CENTER(인증센터) / TOILET(화장실) / WATER(급수대) / AIR_PUMP(공기주입기) / ETC(기타)';
 
