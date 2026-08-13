@@ -2,6 +2,20 @@
 -- Ridely DDL (PostgreSQL 16+ / PostGIS / pgvector)
 -- ============================================================
 --
+-- ⚠️ 이 파일은 Flyway 마이그레이션이다. 적용된 뒤에는 절대 수정하지 않는다.
+--    Flyway가 체크섬을 검증하므로 고치면 다음 기동이 실패한다.
+--    스키마를 바꾸려면 V2__*.sql 을 새로 만든다.
+--
+--    앱 기동 시 자동 실행된다. psql로 손수 적용하던 방식은 폐기했다 —
+--    schema.sql만 고치고 DB에 반영하지 않아 두 번 사고가 났다.
+--    (line_geom MultiLineString / facility_type AIR_PUMP, 후자는 6일간 잠복)
+--
+--    db/schema.sql에서 이동해 왔다. 정본은 이제 이 파일 하나다.
+--
+--    아래 CREATE EXTENSION은 남겨 둔다. PostGIS 이미지가 이미 설치해 두지만
+--    (그래서 baseline-on-migrate가 필요하다 — application.yml 주석 참조),
+--    다른 이미지나 관리형 DB에서는 없을 수 있다. IF NOT EXISTS라 중복 실행은 안전하다.
+--
 -- 명명 규칙: 테이블명 단수형 (Oracle/PostgreSQL 전통 SQL 컨벤션)
 -- 예외: user_settings (settings는 영어 관용 복수형)
 --
@@ -173,6 +187,14 @@ CREATE TABLE route_facility (
 CREATE INDEX idx_facility_geom_gist ON route_facility USING GIST (geom);
 CREATE INDEX idx_facility_type      ON route_facility (facility_type);
 CREATE INDEX idx_facility_route     ON route_facility (national_bike_route_id);
+
+-- 재적재 멱등성. 이 테이블은 행안부 CSV와 서울시 API 두 소스가 함께 쓰는데
+-- 어느 쪽에도 고유 식별자가 없어 (종류, 이름, 좌표)를 자연키로 삼는다.
+-- 소스별 DELETE 후 INSERT를 쓰지 않는 이유: 두 소스가 AIR_PUMP를 모두 제공해
+-- 한쪽을 지우면 다른 쪽이 날아간다. ON CONFLICT DO NOTHING이면 적재 순서와 무관하다.
+-- facility_name은 NULL이면 유일성 판정에서 빠지므로 COALESCE로 빈 문자열 취급한다.
+CREATE UNIQUE INDEX uq_facility_natural
+    ON route_facility (facility_type, COALESCE(facility_name, ''), geom);
 
 COMMENT ON COLUMN route_facility.facility_type IS 'CERT_CENTER(인증센터) / TOILET(화장실) / WATER(급수대) / AIR_PUMP(공기주입기) / ETC(기타)';
 

@@ -197,6 +197,27 @@
             <version>${pgvector.version}</version>
         </dependency>
 
+        <!-- ===== DB 마이그레이션 (Flyway) =====
+             도입 이유: schema.sql만 고치고 기존 DB에 반영하지 않아 두 번 사고가 났다.
+                        (line_geom MultiLineString / facility_type AIR_PUMP — 후자는 6일 잠복)
+                        3인이 각자 로컬 DB를 굴리는데 반영 여부를 추적할 수단이 없었다.
+                        앱 기동 시 자동 적용되므로 사람이 실행하는 단계가 사라진다.
+
+             테스트도 같은 마이그레이션을 탄다. 이전에는 테스트만 schema.sql로 새로 만들고
+             개발 DB는 손으로 고쳐서, 테스트는 통과하고 개발만 깨지는 상태였다.
+
+             ⚠️ Flyway 10부터 DB별 지원이 별도 아티팩트로 분리됐다.
+                flyway-database-postgresql이 없으면 기동 시 "Unsupported Database" 로 실패한다.
+                버전은 Spring Boot BOM이 관리한다. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <!-- ===== AI (Spring AI 1.1.6 Stable) =====
              채택: spring-ai-starter-model-google-genai
                - 1.x에 정상 존재 (Maven Central 배포)
