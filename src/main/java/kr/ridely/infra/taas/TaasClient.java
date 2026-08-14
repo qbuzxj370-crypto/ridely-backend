@@ -36,7 +36,7 @@ import java.util.List;
  *     표시용으로는 {@code spot_nm}, 지역 매핑은 {@code bjd_cd}를 쓴다
  *   - 포털 레벨 오류(키 미등록·한도 초과)는 {@code type=json}이어도 XML로 온다
  *
- * 명세와 실제가 어긋난 항목은 docs/shared/DATA_SOURCES.md 6.7에 정리했다.
+ * 명세와 실제가 어긋난 항목은 docs/shared/DATA_SOURCES.md 6.6에 정리했다.
  */
 @Component
 public class TaasClient {
