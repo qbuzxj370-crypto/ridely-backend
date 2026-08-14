@@ -13,8 +13,8 @@ import java.time.OffsetDateTime;
  * 민감 컬럼(token_hash)을 보유한 테이블이므로 vo로 분리
  * 토큰 원문이 아닌 해시만 저장. 이 객체는 dao·service 내부 전용.
  *
- * ※ 1주차(골격 2)에서는 클래스만 선작성. 실제 INSERT/SELECT는
- *   2주차 로그인·재발급 API(POST /auth/login, /auth/refresh)에서 사용.
+ * ※ 지금은 클래스만 선작성한 상태다. 실제 INSERT/SELECT는
+ *   로그인·재발급 API(POST /auth/login, /auth/refresh)에서 사용한다.
  */
 @Getter
 @Setter

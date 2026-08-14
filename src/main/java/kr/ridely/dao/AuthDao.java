@@ -32,7 +32,7 @@ public interface AuthDao {
     /**
      * loginId로 회원 1행 조회 (없으면 null).
      * 회원가입 직후 DB 확정값(status·created_at) 회수용.
-     * 2주차 로그인(비밀번호 대조)에서도 그대로 재사용한다.
+     * 로그인(비밀번호 대조)에서도 그대로 재사용한다.
      */
     AppUser selectByLoginId(@Param("loginId") String loginId);
 

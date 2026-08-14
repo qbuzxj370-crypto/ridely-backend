@@ -10,7 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param baseUrl        https://api.openrouteservice.org
  * @param apiKey         발급 키 (ORS_API_KEY). Authorization 헤더에 그대로 넣는다
  * @param profile        라우팅 프로파일. 자전거는 cycling-regular
- * @param timeoutSeconds 호출 타임아웃. W3 기준 10초를 넘기면 그냥 실패시킨다
+ * @param timeoutSeconds 호출 타임아웃. 초과하면 그냥 실패시킨다
  */
 @ConfigurationProperties(prefix = "ridely.external.ors")
 public record OrsProperties(

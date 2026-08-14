@@ -12,9 +12,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param candidatePerKm           거리 1km당 후보 수. 타입별로 다르다
  * @param candidateMinCount        타입별 후보 개수 하한
  * @param candidateMaxCount        타입별 후보 개수 상한. 프롬프트 토큰 예산이다
- * @param cacheTtlHours            추천 결과 캐시 수명. W4에서 사용
+ * @param cacheTtlHours            추천 결과 캐시 수명. 캐시 도입 시 사용한다
  * @param maxTargetDistanceKm      목표 거리 상한. ROUTE-002 판정에 쓴다
- * @param dangerZoneAlertDistanceM 라이딩 모드 근접 알림 거리. W4에서 사용
+ * @param dangerZoneAlertDistanceM 라이딩 모드 근접 알림 거리. 라이딩 모드 도입 시 사용한다
  */
 @ConfigurationProperties(prefix = "ridely.route")
 public record RouteProperties(

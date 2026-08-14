@@ -51,7 +51,7 @@ public class RouteCandidatesDTO {
     /**
      * LLM이 돌려준 (type, id)에 해당하는 후보를 찾는다.
      *
-     * 없으면 비어 있는 값이 온다. LLM이 실재하지 않는 ID를 만들어내는 경우가 있어, 경유지를 확정하기 전에 이걸로 걸러야 한다. W3에서는 걸러내기만 하고 재호출은 하지 않는다.
+     * 없으면 비어 있는 값이 온다. LLM이 실재하지 않는 ID를 만들어내는 경우가 있어, 경유지를 확정하기 전에 이걸로 걸러야 한다. 지금은 걸러내기만 하고 재호출은 하지 않는다.
      */
     public Optional<CandidateDTO> find(String type, Long id) {
         return all().stream().filter(c -> c.matches(type, id)).findFirst();

@@ -18,7 +18,7 @@ import java.util.UUID;
  * 토큰 종류를 type 클레임으로 구분한다(access/refresh).
  * refresh 자리에 access 토큰을 넣어도 서명 자체는 유효하기 때문에 클레임으로 구분하지 않으면 이후 재발급 API에서 서로 바꿔치기가 가능해진다.
  *
- * 실제 로그인 API·인증 필터는 2주차. 1주차는 이 클래스 + 단위 테스트까지.
+ * 실제 로그인 API·인증 필터는 별도로 붙인다. 여기는 토큰 생성·검증과 단위 테스트까지다.
  */
 @Component
 public class JwtTokenProvider {
