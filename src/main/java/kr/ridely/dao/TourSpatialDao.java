@@ -89,25 +89,93 @@ public class TourSpatialDao {
                 .param("radiusM", radiusM)
                 .param("contentTypeIds", contentTypeIds.toArray(new String[0]))
                 .param("limit", limit)
-                .query((rs, rowNum) -> {
-                    TourAttractionDTO dto = new TourAttractionDTO();
-                    dto.setTourAttractionId(rs.getLong("tour_attraction_id"));
-                    dto.setContentId(rs.getString("content_id"));
-                    dto.setContentTypeId(rs.getString("content_type_id"));
-                    dto.setTitle(rs.getString("title"));
-                    dto.setLat(rs.getDouble("lat"));
-                    dto.setLng(rs.getDouble("lng"));
-                    dto.setAddr1(rs.getString("addr1"));
-                    dto.setAddr2(rs.getString("addr2"));
-                    dto.setTel(rs.getString("tel"));
-                    dto.setFirstImageUrl(rs.getString("first_image_url"));
-                    dto.setThumbnailUrl(rs.getString("thumbnail_url"));
-                    dto.setOverview(rs.getString("overview"));
-                    dto.setEventStartDate(rs.getObject("event_start_date", java.time.LocalDate.class));
-                    dto.setEventEndDate(rs.getObject("event_end_date", java.time.LocalDate.class));
-                    dto.setDistanceM(rs.getInt("distance_m"));
-                    return dto;
-                })
+                .query(TourSpatialDao::mapRow)
                 .list();
+    }
+
+    /**
+     * 출발지~도착지를 이은 축 주변의 관광 콘텐츠를 가까운 순으로 조회한다.
+     *
+     * findNearby는 한 점 주변을 보는데, 코스 추천에서는 그걸로 부족하다. 출발점 반경만 보면 도착지 쪽 관광지가 통째로 빠지고, 그렇다고 중간점에서 원을 크게 그리면 축에서 멀리 벗어난 곳까지 들어온다. 두 점을 이은 선에서의 거리로 재야 경로 주변만 남는다.
+     *
+     * 도착지가 없으면(순환 코스) 축을 만들 수 없으므로 출발점 하나를 기준으로 삼는다. 이때 반경은 호출부가 목표 거리에서 유도해 넘긴다.
+     *
+     * @param endLng    도착지 경도. null이면 출발점 반경만 본다
+     * @param endLat    도착지 위도. null이면 위와 같다
+     * @param corridorM 축에서 이 거리 안까지 후보로 본다 (m)
+     */
+    public List<TourAttractionDTO> findAlongCorridor(double startLng, double startLat,
+                                                     Double endLng, Double endLat,
+                                                     int corridorM, List<String> contentTypeIds, int limit) {
+        /*
+         * :hasEnd를 따로 받는 이유 — :endLng를 NULL로 넘기면 PostgreSQL이 CASE 안에서
+         * 파라미터 타입을 추론하지 못해 "could not determine data type of parameter"로 깨진다.
+         * 도착지가 없으면 Java가 출발지 좌표를 채워 넣고 사용 여부는 이 플래그로 가른다.
+         * PoiSpatialDao와 같은 방식이다.
+         */
+        String sql = """
+                WITH corridor AS (
+                    SELECT (CASE
+                              WHEN :hasEnd THEN ST_MakeLine(
+                                       ST_SetSRID(ST_MakePoint(:startLng, :startLat), 4326),
+                                       ST_SetSRID(ST_MakePoint(:endLng,   :endLat),   4326))
+                              ELSE ST_SetSRID(ST_MakePoint(:startLng, :startLat), 4326)
+                            END)::geography AS g
+                )
+                SELECT
+                    t.tour_attraction_id,
+                    t.content_id,
+                    t.content_type_id,
+                    t.title,
+                    ST_Y(t.geom) AS lat,
+                    ST_X(t.geom) AS lng,
+                    t.addr1,
+                    t.addr2,
+                    t.tel,
+                    t.first_image_url,
+                    t.thumbnail_url,
+                    t.overview,
+                    t.event_start_date,
+                    t.event_end_date,
+                    ROUND(ST_Distance(t.geom::geography, c.g))::int AS distance_m
+                FROM tour_attraction t, corridor c
+                WHERE ST_DWithin(t.geom::geography, c.g, :corridorM)
+                  AND t.content_type_id = ANY(:contentTypeIds)
+                ORDER BY distance_m
+                LIMIT :limit
+                """;
+
+        boolean hasEnd = endLng != null && endLat != null;
+        return jdbcClient.sql(sql)
+                .param("startLng", startLng)
+                .param("startLat", startLat)
+                .param("endLng", hasEnd ? endLng : startLng)
+                .param("endLat", hasEnd ? endLat : startLat)
+                .param("hasEnd", hasEnd)
+                .param("corridorM", corridorM)
+                .param("contentTypeIds", contentTypeIds.toArray(new String[0]))
+                .param("limit", limit)
+                .query(TourSpatialDao::mapRow)
+                .list();
+    }
+
+    private static TourAttractionDTO mapRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        TourAttractionDTO dto = new TourAttractionDTO();
+        dto.setTourAttractionId(rs.getLong("tour_attraction_id"));
+        dto.setContentId(rs.getString("content_id"));
+        dto.setContentTypeId(rs.getString("content_type_id"));
+        dto.setTitle(rs.getString("title"));
+        dto.setLat(rs.getDouble("lat"));
+        dto.setLng(rs.getDouble("lng"));
+        dto.setAddr1(rs.getString("addr1"));
+        dto.setAddr2(rs.getString("addr2"));
+        dto.setTel(rs.getString("tel"));
+        dto.setFirstImageUrl(rs.getString("first_image_url"));
+        dto.setThumbnailUrl(rs.getString("thumbnail_url"));
+        dto.setOverview(rs.getString("overview"));
+        dto.setEventStartDate(rs.getObject("event_start_date", java.time.LocalDate.class));
+        dto.setEventEndDate(rs.getObject("event_end_date", java.time.LocalDate.class));
+        dto.setDistanceM(rs.getInt("distance_m"));
+        return dto;
     }
 }
