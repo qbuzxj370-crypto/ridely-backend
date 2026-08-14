@@ -247,7 +247,30 @@ ridely:
 
   # 코스 추천
   route:
-    candidate-radius-km: 8              # InfraCandidateCollector 검색 반경
+    # 후보 수집 반경. 목표 거리에서 유도하고 아래 두 값으로 자른다.
+    #
+    # 하한 1,500m인 이유: 한강 폭이 약 1km라 반대편 강안 시설이 712~1,259m에 있다
+    # (DATA_SOURCES 6.9.1). 노선 연결용 500m와 달리 여기서는 건너편도 후보로 본다.
+    # 짧은 코스라도 이 아래로는 내리지 않는다.
+    candidate-min-radius-m: 1500
+    # 상한. 유도값이 커져도 여기서 멈춘다. 넘어가면 코스와 무관한 지역이 후보로 들어온다.
+    candidate-radius-km: 8
+
+    # 거리 1km당 후보 수. 목표 거리를 곱해 타입별 개수를 정한다.
+    # 12km 코스 기준으로 관광 10 / 급수대 8 / 수리소 3 / 따릉이 3이 나온다.
+    #
+    # 관광지가 가장 높은 이유는 코스의 목적지라 LLM이 고를 폭이 있어야 하기 때문이다.
+    # 급수대가 그다음인 것은 MVP 구간에 실제로 많아서다 — 176건 중 75건 (DATA_SOURCES 2.2).
+    # 수리소·따릉이는 "지나는 김에 들르는" 곳이라 낮게 잡는다.
+    candidate-per-km:
+      tour: 0.8
+      water: 0.7
+      repair-shop: 0.25
+      bike-station: 0.25
+    # 타입별 개수 하한·상한. 상한은 프롬프트 토큰 예산이다.
+    # 네 타입이 모두 상한이면 60건이고, 렌더링하면 2,000 토큰대다.
+    candidate-min-count: 3
+    candidate-max-count: 15
     cache-ttl-hours: 24
     max-target-distance-km: 100
     danger-zone-alert-distance-m: 200   # 라이딩 모드 근접 알림 거리
