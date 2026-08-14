@@ -102,6 +102,8 @@ public class InfraCandidateCollector {
         candidates.setBikeStations(dedupeNearby(toCandidates(TYPE_BIKE_STATION, poiSpatialDao.findBikeStations(
                 startLng, startLat, endLng, endLat, radiusM, fetchLimit(bikeStationCount))), bikeStationCount));
 
+        fillProgressRatio(candidates, startLng, startLat, endLng, endLat);
+
         log.debug("후보 수집: 목표 {}km, 반경 {}m — 관광 {} / 급수대 {} / 수리소 {} / 따릉이 {} (합 {})",
                 targetDistanceKm, radiusM, candidates.getTours().size(), candidates.getWaters().size(),
                 candidates.getRepairShops().size(), candidates.getBikeStations().size(),
@@ -158,6 +160,37 @@ public class InfraCandidateCollector {
 
         double cappedM = Math.min(derivedM, routeProperties.candidateRadiusKm() * KM_TO_M);
         return (int) Math.max(routeProperties.candidateMinRadiusM(), cappedM);
+    }
+
+    /**
+     * 후보를 출발~도착 축 위로 투영해 진행도를 채운다.
+     *
+     * 조회 결과의 distanceM은 축에서 수직으로 떨어진 거리라 "경로의 어느 지점인가"를 알려주지 않는다. LLM이 경유지를 순서대로 배치하려면 그 값이 필요하다.
+     *
+     * 투영은 평면 근사로 한다. 축 길이가 수 km 규모라 위경도를 그대로 벡터로 다뤄도 오차가 무시할 수준이고, 경도는 위도에 따라 좁아지므로 cos(위도)로 보정한다.
+     *
+     * 도착지가 없는 순환 코스는 축이 없어 진행도를 정의할 수 없다. null로 남기고 프롬프트에서 위치 표현을 생략한다.
+     */
+    private void fillProgressRatio(RouteCandidatesDTO candidates,
+                                   double startLng, double startLat, Double endLng, Double endLat) {
+        if (endLng == null || endLat == null) {
+            return;
+        }
+        double lngScale = Math.cos(Math.toRadians(startLat));
+        double axisX = (endLng - startLng) * lngScale;
+        double axisY = endLat - startLat;
+        double axisLengthSquared = axisX * axisX + axisY * axisY;
+        if (axisLengthSquared == 0) {
+            return;
+        }
+
+        for (CandidateDTO c : candidates.all()) {
+            double px = (c.getLng() - startLng) * lngScale;
+            double py = c.getLat() - startLat;
+            double ratio = (px * axisX + py * axisY) / axisLengthSquared;
+            // 축 밖으로 벗어난 후보는 양 끝으로 붙인다. 음수 진행도는 의미가 없다
+            c.setProgressRatio(Math.clamp(ratio, 0.0, 1.0));
+        }
     }
 
     /** 두 좌표 사이의 대권 거리(m) */
