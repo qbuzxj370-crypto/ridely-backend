@@ -383,7 +383,7 @@ db/seed/
 | openrouteservice | 자전거 경로 라우팅 | `ORS_API_KEY` | OpenStreetMap 기반. 무료 한도 확인 필요 |
 | Kakao Local | 주소·장소명 → 좌표 | `KAKAO_REST_API_KEY` | 백엔드 전용 |
 | Kakao Map JS | 지도 렌더링 | `KAKAO_JS_API_KEY` | 프론트 전용 |
-| Google Gemini | 코스 설계·코멘트 생성 | `GOOGLE_API_KEY` | `gemini-2.5-flash` |
+| Google Gemini | 코스 설계·코멘트 생성 | `GOOGLE_API_KEY` | `gemini-3.5-flash-lite` (2026-08-14 전환, 아래 참조) |
 
 **ORS 검증 결과** (선유도공원 → 여의도한강공원)
 
@@ -393,6 +393,39 @@ db/seed/
   원인 분석과 보정 방법(크기 임계값이 아니라 경사 상한)은 `SCHEMA_CHANGE_POI.md` 6.5
 - `elevation:true`면 bbox가 **6개 값(3D)**이다
 - `instructions:false`를 넣어 불필요한 턴바이턴 데이터를 줄인다
+
+### Gemini 모델 전환 (2026-08-14)
+
+`gemini-2.5-flash`가 **예고된 은퇴일(10-16)보다 먼저 신규 사용자에게 차단됐다.**
+
+```
+404 This model models/gemini-2.5-flash is no longer available to new users.
+```
+
+기존 계획은 "결선 진출 시 `gemini-3.5-flash`로 이관"이었는데 **그 계획도 폐기한다.** 공식 문서가 3.5-flash를 이미 legacy로 분류했고, 우리는 11월 시상식까지 살아 있어야 한다.
+
+처음엔 최신 stable인 `gemini-3.7-flash`로 옮겼는데 **무료 한도에 막혔다.** AI Studio 콘솔 실측이다.
+
+| 모델 | RPM | RPD | 기본 thinking | 판정 |
+|---|---|---|---|---|
+| Gemini 3.7 Flash | 5 | 20 | on | ❌ |
+| Gemini 3.6 Flash | 5 | 20 | medium | ❌ |
+| **Gemini 3.5 Flash Lite** | **20** | **500** | **minimal** | ✅ 채택 |
+
+**RPD 20이면 하루 10회 추천이 상한이다.** 파이프라인이 추천 1회에 LLM을 2번(설계·코멘트) 부르기 때문이다. 개발 중 테스트만으로 오전에 소진되고 게이트 리허설도 못 돌린다.
+
+`RIDELY_SPRINT_MASTER` R4의 전제(`2.5-flash 10RPM/500RPD`)가 무너졌다. 3.x 상위 모델은 RPD가 25분의 1이다.
+
+**Lite로 충분하다고 본 근거** — 우리 작업은 "목록에서 3곳 고르기 + 두 문장 쓰기"다. 공식 문서도 단순 조회·분류에는 minimal thinking을 권한다. 상위 모델의 추론력이 필요한 일이 아니다.
+
+> 품질이 부족하면 설계만 Lite로 두고 코멘트를 상위 모델로 올린다. 다만 그러면 코멘트가 RPD 20에 묶인다. **근본 해결책은 유료 티어 전환이다** — 10월 심사에서 심사위원이 직접 눌러보면 500도 안심할 수 없고, Tier 1은 결제 연결만으로 즉시 적용된다.
+
+**교훈 둘**
+
+1. 은퇴 예고일을 안전 마진으로 삼으면 안 된다. 예고일 두 달 전에 신규 차단이 걸렸고, 공지가 아니라 404로 알게 됐다.
+2. **모델 선택 기준이 성능이 아니라 무료 한도다.** 최신 stable을 고르는 것이 능사가 아니다. 공식 문서는 모델별 무료 한도 표를 더 이상 싣지 않으므로 AI Studio 콘솔에서 직접 확인해야 한다.
+
+> W5 RAG용 `gemini-embedding-001`은 아직 유효하다. 다만 후속인 `gemini-embedding-2-preview`가 나와 있어 착수 시 다시 확인한다.
 
 ---
 
