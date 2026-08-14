@@ -389,7 +389,8 @@ db/seed/
 
 - `distance` 4,822.9m — 직선거리 3.9km 대비 정상. **한강 자전거길을 제대로 탄다**
 - `ascent` 137.9m인데 같은 응답의 고도 범위가 1~32m다. **SRTM 노이즈로 과대 계상된다.**
-  `total_ascent_m`·`estimated_duration_min`에 영향이 간다
+  `total_ascent_m`·`estimated_duration_min`에 영향이 간다.
+  원인 분석과 보정 방법(크기 임계값이 아니라 경사 상한)은 `SCHEMA_CHANGE_POI.md` 6.5
 - `elevation:true`면 bbox가 **6개 값(3D)**이다
 - `instructions:false`를 넣어 불필요한 턴바이턴 데이터를 줄인다
 
