@@ -51,6 +51,34 @@ public class PoiSpatialDao {
             )
             """;
 
+    /*
+     * [축에서 가까운 순으로만 자르면 안 되는 이유]
+     *
+     * ORDER BY distance_m LIMIT n 은 축에 붙은 후보만 올려보낸다. 그 후보들은 들러도 경로가
+     * 거의 길어지지 않아서, 목표 거리를 채울 선택지가 LLM에게 애초에 주어지지 않는다.
+     * 실측으로 12km를 요청했는데 7.8km가 나왔고 원인이 여기였다.
+     *
+     * 그래서 가까운 순 등수와 먼 순 등수를 각각 매기고 둘 중 작은 값으로 정렬한다. 결과는
+     * 양 끝에서 번갈아 집는 형태가 된다 — 가장 가까운 것, 가장 먼 것, 두 번째로 가까운 것,
+     * 두 번째로 먼 것 순이다. 편의 시설로 쓸 근접 후보와 거리를 채울 원거리 후보가 한 번에 들어온다.
+     *
+     * 먼 쪽 끝이 "예산이 허용하는 최대 우회"와 자동으로 맞는다. :corridorM 자체를
+     * (목표 거리 - 직선거리) / 2 로 유도하기 때문이다 (InfraCandidateCollector.searchRadiusM).
+     * 반경 밖은 ST_DWithin이 이미 잘라냈으므로 여기서 나오는 최원거리가 곧 상한이다.
+     *
+     * 윈도우 함수는 같은 질의 수준의 ORDER BY에 직접 쓸 수 없어 파생 테이블로 한 겹 감싼다.
+     */
+    private static final String PICK_BOTH_ENDS = """
+            SELECT * FROM (
+                SELECT n.*,
+                       LEAST(ROW_NUMBER() OVER (ORDER BY distance_m),
+                             ROW_NUMBER() OVER (ORDER BY distance_m DESC)) AS pick_rank
+                FROM nearby n
+            ) r
+            ORDER BY pick_rank, distance_m
+            LIMIT :limit
+            """;
+
     private final JdbcClient jdbcClient;
 
     public PoiSpatialDao(JdbcClient jdbcClient) {
@@ -58,7 +86,7 @@ public class PoiSpatialDao {
     }
 
     /**
-     * 자전거길 주변시설을 축 주변에서 가까운 순으로 조회한다.
+     * 자전거길 주변시설을 축 주변에서 근거리·원거리를 섞어 조회한다.
      *
      * @param facilityTypes 조회할 종류. WATER(급수대)·TOILET(화장실)·CERT_CENTER(인증센터)·AIR_PUMP(공기주입기)
      * @see #findRepairShops 파라미터 설명은 이쪽 javadoc 참조
@@ -67,19 +95,19 @@ public class PoiSpatialDao {
                                                 Double endLng, Double endLat,
                                                 int corridorM, List<String> facilityTypes, int limit) {
         String sql = CORRIDOR_CTE + """
-                SELECT
-                    f.route_facility_id AS id,
-                    f.facility_name     AS name,
-                    f.facility_type,
-                    ST_Y(f.geom) AS lat,
-                    ST_X(f.geom) AS lng,
-                    ROUND(ST_Distance(f.geom::geography, c.g))::int AS distance_m
-                FROM route_facility f, corridor c
-                WHERE ST_DWithin(f.geom::geography, c.g, :corridorM)
-                  AND f.facility_type = ANY(:facilityTypes)
-                ORDER BY distance_m
-                LIMIT :limit
-                """;
+                , nearby AS (
+                    SELECT
+                        f.route_facility_id AS id,
+                        f.facility_name     AS name,
+                        f.facility_type,
+                        ST_Y(f.geom) AS lat,
+                        ST_X(f.geom) AS lng,
+                        ROUND(ST_Distance(f.geom::geography, c.g))::int AS distance_m
+                    FROM route_facility f, corridor c
+                    WHERE ST_DWithin(f.geom::geography, c.g, :corridorM)
+                      AND f.facility_type = ANY(:facilityTypes)
+                )
+                """ + PICK_BOTH_ENDS;
 
         return corridorQuery(sql, startLng, startLat, endLng, endLat, corridorM, limit)
                 .param("facilityTypes", facilityTypes.toArray(new String[0]))
@@ -94,7 +122,7 @@ public class PoiSpatialDao {
     }
 
     /**
-     * 자전거 수리센터를 축 주변에서 가까운 순으로 조회한다.
+     * 자전거 수리센터를 축 주변에서 근거리·원거리를 섞어 조회한다.
      *
      * @param startLng   출발지 경도
      * @param startLat   출발지 위도
@@ -107,21 +135,21 @@ public class PoiSpatialDao {
                                             Double endLng, Double endLat,
                                             int corridorM, int limit) {
         String sql = CORRIDOR_CTE + """
-                SELECT
-                    s.repair_shop_id AS id,
-                    s.shop_name      AS name,
-                    s.addr,
-                    s.tel,
-                    s.is_free,
-                    s.operating_hours,
-                    ST_Y(s.geom) AS lat,
-                    ST_X(s.geom) AS lng,
-                    ROUND(ST_Distance(s.geom::geography, c.g))::int AS distance_m
-                FROM repair_shop s, corridor c
-                WHERE ST_DWithin(s.geom::geography, c.g, :corridorM)
-                ORDER BY distance_m
-                LIMIT :limit
-                """;
+                , nearby AS (
+                    SELECT
+                        s.repair_shop_id AS id,
+                        s.shop_name      AS name,
+                        s.addr,
+                        s.tel,
+                        s.is_free,
+                        s.operating_hours,
+                        ST_Y(s.geom) AS lat,
+                        ST_X(s.geom) AS lng,
+                        ROUND(ST_Distance(s.geom::geography, c.g))::int AS distance_m
+                    FROM repair_shop s, corridor c
+                    WHERE ST_DWithin(s.geom::geography, c.g, :corridorM)
+                )
+                """ + PICK_BOTH_ENDS;
 
         return corridorQuery(sql, startLng, startLat, endLng, endLat, corridorM, limit)
                 .query((rs, rowNum) -> {
@@ -138,7 +166,7 @@ public class PoiSpatialDao {
     }
 
     /**
-     * 따릉이 대여소를 축 주변에서 가까운 순으로 조회한다.
+     * 따릉이 대여소를 축 주변에서 근거리·원거리를 섞어 조회한다.
      *
      * 폐쇄된 대여소(is_active = FALSE)는 제외한다. 적재 시 응답에 없던 대여소를
      * 지우지 않고 비활성으로 돌리므로(BikeStationDao.deactivateStale) 여기서 걸러야 한다.
@@ -147,20 +175,20 @@ public class PoiSpatialDao {
                                              Double endLng, Double endLat,
                                              int corridorM, int limit) {
         String sql = CORRIDOR_CTE + """
-                SELECT
-                    b.bike_station_id AS id,
-                    b.station_name    AS name,
-                    b.rack_count,
-                    b.is_active,
-                    ST_Y(b.geom) AS lat,
-                    ST_X(b.geom) AS lng,
-                    ROUND(ST_Distance(b.geom::geography, c.g))::int AS distance_m
-                FROM bike_station b, corridor c
-                WHERE ST_DWithin(b.geom::geography, c.g, :corridorM)
-                  AND b.is_active
-                ORDER BY distance_m
-                LIMIT :limit
-                """;
+                , nearby AS (
+                    SELECT
+                        b.bike_station_id AS id,
+                        b.station_name    AS name,
+                        b.rack_count,
+                        b.is_active,
+                        ST_Y(b.geom) AS lat,
+                        ST_X(b.geom) AS lng,
+                        ROUND(ST_Distance(b.geom::geography, c.g))::int AS distance_m
+                    FROM bike_station b, corridor c
+                    WHERE ST_DWithin(b.geom::geography, c.g, :corridorM)
+                      AND b.is_active
+                )
+                """ + PICK_BOTH_ENDS;
 
         return corridorQuery(sql, startLng, startLat, endLng, endLat, corridorM, limit)
                 .query((rs, rowNum) -> {

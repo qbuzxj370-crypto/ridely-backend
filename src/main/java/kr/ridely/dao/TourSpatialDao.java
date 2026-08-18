@@ -94,11 +94,13 @@ public class TourSpatialDao {
     }
 
     /**
-     * 출발지~도착지를 이은 축 주변의 관광 콘텐츠를 가까운 순으로 조회한다.
+     * 출발지~도착지를 이은 축 주변의 관광 콘텐츠를 근거리·원거리를 섞어 조회한다.
      *
      * findNearby는 한 점 주변을 보는데, 코스 추천에서는 그걸로 부족하다. 출발점 반경만 보면 도착지 쪽 관광지가 통째로 빠지고, 그렇다고 중간점에서 원을 크게 그리면 축에서 멀리 벗어난 곳까지 들어온다. 두 점을 이은 선에서의 거리로 재야 경로 주변만 남는다.
      *
      * 도착지가 없으면(순환 코스) 축을 만들 수 없으므로 출발점 하나를 기준으로 삼는다. 이때 반경은 호출부가 목표 거리에서 유도해 넘긴다.
+     *
+     * 정렬은 가까운 순이 아니다. 가까운 순 등수와 먼 순 등수 중 작은 값으로 정렬해 양 끝에서 번갈아 집는다. 가까운 순으로만 자르면 축에 붙은 관광지만 올라와 코스가 목표 거리에 못 미친다 — PoiSpatialDao.PICK_BOTH_ENDS에 같은 판단과 실측 근거가 있다.
      *
      * @param endLng    도착지 경도. null이면 출발점 반경만 본다
      * @param endLat    도착지 위도. null이면 위와 같다
@@ -122,26 +124,34 @@ public class TourSpatialDao {
                               ELSE ST_SetSRID(ST_MakePoint(:startLng, :startLat), 4326)
                             END)::geography AS g
                 )
-                SELECT
-                    t.tour_attraction_id,
-                    t.content_id,
-                    t.content_type_id,
-                    t.title,
-                    ST_Y(t.geom) AS lat,
-                    ST_X(t.geom) AS lng,
-                    t.addr1,
-                    t.addr2,
-                    t.tel,
-                    t.first_image_url,
-                    t.thumbnail_url,
-                    t.overview,
-                    t.event_start_date,
-                    t.event_end_date,
-                    ROUND(ST_Distance(t.geom::geography, c.g))::int AS distance_m
-                FROM tour_attraction t, corridor c
-                WHERE ST_DWithin(t.geom::geography, c.g, :corridorM)
-                  AND t.content_type_id = ANY(:contentTypeIds)
-                ORDER BY distance_m
+                , nearby AS (
+                    SELECT
+                        t.tour_attraction_id,
+                        t.content_id,
+                        t.content_type_id,
+                        t.title,
+                        ST_Y(t.geom) AS lat,
+                        ST_X(t.geom) AS lng,
+                        t.addr1,
+                        t.addr2,
+                        t.tel,
+                        t.first_image_url,
+                        t.thumbnail_url,
+                        t.overview,
+                        t.event_start_date,
+                        t.event_end_date,
+                        ROUND(ST_Distance(t.geom::geography, c.g))::int AS distance_m
+                    FROM tour_attraction t, corridor c
+                    WHERE ST_DWithin(t.geom::geography, c.g, :corridorM)
+                      AND t.content_type_id = ANY(:contentTypeIds)
+                )
+                SELECT * FROM (
+                    SELECT n.*,
+                           LEAST(ROW_NUMBER() OVER (ORDER BY distance_m),
+                                 ROW_NUMBER() OVER (ORDER BY distance_m DESC)) AS pick_rank
+                    FROM nearby n
+                ) r
+                ORDER BY pick_rank, distance_m
                 LIMIT :limit
                 """;
 
