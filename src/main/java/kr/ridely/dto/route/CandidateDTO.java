@@ -45,6 +45,8 @@ public class CandidateDTO {
      *
      * distanceM이 "경로를 얼마나 벗어났나"라면 이건 "경로의 어느 지점인가"다. 둘은 다른 값이고 LLM에는 둘 다 필요하다. 진행도를 모르면 경유지를 순서대로 배치할 수 없고 "9km 지점 급수대" 같은 이유도 쓸 수 없다.
      *
+     * 범위는 강제하지 않는다. 수집 중에는 출발지 이전(음수)이나 도착지 너머(1 초과)로 투영된 값이 잠시 들어 있고, InfraCandidateCollector가 그 값을 보고 걸러낸다. 걸러진 뒤 LLM에게 가는 목록은 모두 0~1이다.
+     *
      * 도착지가 없는 순환 코스는 축이 없으므로 null이다.
      */
     private Double progressRatio;
