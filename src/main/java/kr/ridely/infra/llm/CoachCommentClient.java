@@ -6,9 +6,13 @@ import kr.ridely.dto.route.CourseDesignDTO;
 import kr.ridely.dto.route.RouteCandidatesDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,54 +28,50 @@ public class CoachCommentClient {
 
     private static final Logger log = LoggerFactory.getLogger(CoachCommentClient.class);
 
-    private static final String SYSTEM_PROMPT_FILE = "coach-ridely-system.txt";
-    private static final String USER_PROMPT_FILE = "coach-comment-user.txt";
-
     private static final String TYPE_WATER = "WATER";
     private static final String WATER_LABEL = "급수대";
 
-    /** 경유지를 하나도 못 찾았을 때 프롬프트에 넣을 문구. 빈 값으로 두면 LLM이 지어낸다 */
-    private static final String NO_WAYPOINT = "(경유지 없음)";
-
-    private final PromptLoader promptLoader;
     private final StructuredLlmCaller llmCaller;
     private final LlmProperties properties;
+    private final Resource systemPrompt;
+    private final Resource userPrompt;
 
-    public CoachCommentClient(PromptLoader promptLoader, StructuredLlmCaller llmCaller,
-                              LlmProperties properties) {
-        this.promptLoader = promptLoader;
+    public CoachCommentClient(StructuredLlmCaller llmCaller, LlmProperties properties,
+                              @Value("classpath:prompts/coach-ridely-system.st") Resource systemPrompt,
+                              @Value("classpath:prompts/coach-comment-user.st") Resource userPrompt) {
         this.llmCaller = llmCaller;
         this.properties = properties;
+        this.systemPrompt = systemPrompt;
+        this.userPrompt = userPrompt;
     }
 
     /**
      * 코스 해설을 생성한다.
      *
-     * @param design          설계 결과. 경유지 이유와 설계 의도를 프롬프트에 그대로 넘긴다
-     * @param candidates      경유지 이름을 되찾기 위한 원본 후보 목록
+     * @param design           설계 결과. 경유지 이유와 설계 의도를 프롬프트에 그대로 넘긴다
+     * @param candidates       경유지 이름을 되찾기 위한 원본 후보 목록
      * @param targetDistanceKm 요청한 목표 거리
+     * @param circular         도착지 없이 출발지로 되돌아오는 코스인지
      * @param totalDistanceKm  ORS가 계산한 실제 거리
      * @param durationMin      예상 소요 시간(분)
      * @param intensityLevel   산출된 운동 강도
      */
     public CoachCommentDTO generate(CourseDesignDTO design, RouteCandidatesDTO candidates,
-                                    double targetDistanceKm, double totalDistanceKm,
+                                    double targetDistanceKm, boolean circular,
+                                    double totalDistanceKm,
                                     int durationMin, String intensityLevel) {
 
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("TOTAL_DISTANCE_KM", String.valueOf(totalDistanceKm));
-        values.put("DURATION_MIN", String.valueOf(durationMin));
-        values.put("INTENSITY_LEVEL", intensityLevel);
-        values.put("TARGET_DISTANCE_KM", String.valueOf(targetDistanceKm));
-        values.put("DESIGN_INTENT", orEmpty(design.getDesignIntent()));
-        values.put("WAYPOINTS", renderWaypoints(design, candidates, targetDistanceKm));
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("routeShape", circular ? "출발지로 되돌아오는 순환 코스" : "출발지에서 도착지까지 가는 편도 코스");
+        variables.put("totalDistanceKm", String.valueOf(totalDistanceKm));
+        variables.put("durationMin", String.valueOf(durationMin));
+        variables.put("intensityLevel", intensityLevel);
+        variables.put("targetDistanceKm", String.valueOf(targetDistanceKm));
+        variables.put("designIntent", orEmpty(design.getDesignIntent()));
+        variables.put("waypoints", toRows(design, candidates, totalDistanceKm));
 
-        String userPrompt = promptLoader.render(USER_PROMPT_FILE, values);
-        log.debug("코멘트 생성 프롬프트:\n{}", userPrompt);
-
-        CoachCommentDTO comment = llmCaller.call("코멘트 생성",
-                promptLoader.load(SYSTEM_PROMPT_FILE), userPrompt,
-                properties.commentTemperature(), CoachCommentDTO.class);
+        CoachCommentDTO comment = llmCaller.call("코멘트 생성", systemPrompt, userPrompt,
+                variables, properties.commentTemperature(), CoachCommentDTO.class);
         normalizeBlanks(comment);
 
         // 톤 검증기를 만들 재료다. 실제 출력을 모아야 무엇을 거를지 정할 수 있다
@@ -95,13 +95,15 @@ public class CoachCommentClient {
     }
 
     /**
-     * 확정된 경유지를 프롬프트용 텍스트로 만든다.
+     * 확정된 경유지를 템플릿이 읽을 수 있는 형태로 바꾼다.
      *
      * 설계가 돌려준 것은 (종류, 번호, 이유)뿐이라 이름과 위치는 후보 목록에서 되찾아야 한다. 이 시점에는 실재하지 않는 번호가 이미 걸러져 있지만, 방어적으로 못 찾은 건은 건너뛴다.
+     *
+     * 위치는 목표 거리가 아니라 실측 거리로 환산한다. 응답의 waypoints와 같은 기준이어야 한다. 기준이 갈리면 같은 경유지가 코멘트에서는 11.7km 지점, 목록에서는 6.2km 지점으로 나온다.
      */
-    private String renderWaypoints(CourseDesignDTO design, RouteCandidatesDTO candidates,
-                                   double targetDistanceKm) {
-        StringBuilder sb = new StringBuilder();
+    private List<Map<String, String>> toRows(CourseDesignDTO design, RouteCandidatesDTO candidates,
+                                             double totalDistanceKm) {
+        List<Map<String, String>> rows = new ArrayList<>();
         for (CourseDesignDTO.SelectedWaypoint selected : design.waypointsOrEmpty()) {
             Optional<CandidateDTO> found = candidates.find(selected.getType(), selected.getId());
             if (found.isEmpty()) {
@@ -113,20 +115,18 @@ public class CoachCommentClient {
             }
             CandidateDTO candidate = found.get();
 
-            sb.append("- ");
-            Double progressKm = candidate.progressKm(targetDistanceKm);
-            if (progressKm != null) {
-                sb.append(progressKm).append("km 지점 | ");
-            }
-            sb.append(displayName(candidate))
-                    .append(" | ").append(orEmpty(selected.getReason()))
-                    .append('\n');
+            Map<String, String> row = new LinkedHashMap<>();
+            Double progressKm = candidate.progressKm(totalDistanceKm);
+            row.put("progressKm", progressKm == null ? "?" : String.valueOf(progressKm));
+            row.put("label", label(candidate));
+            row.put("reason", orEmpty(selected.getReason()));
+            rows.add(row);
         }
-        return sb.isEmpty() ? NO_WAYPOINT : sb.toString();
+        return rows;
     }
 
     /** 급수대는 원본 이름이 전부 노선명이라 구분에 쓸 수 없다 — DATA_SOURCES 6.1의 5번 */
-    private String displayName(CandidateDTO candidate) {
+    private String label(CandidateDTO candidate) {
         if (TYPE_WATER.equals(candidate.getType())) {
             return WATER_LABEL;
         }
