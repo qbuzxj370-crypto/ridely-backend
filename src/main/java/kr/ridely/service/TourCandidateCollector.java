@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * 코스 설계용 관광 후보 수집기.
  *
- * 출발지~도착지 축 주변의 관광지를 가까운 순으로 뽑는다. 실제 조회는 TourSpatialDao가 하고, 반경과 개수는 호출부(InfraCandidateCollector)가 목표 거리에서 유도해 넘긴다.
+ * 출발지~도착지 축 주변의 관광지를 뽑는다. 실제 조회는 TourSpatialDao가 하고, 반경과 개수는 호출부(InfraCandidateCollector)가 목표 거리에서 유도해 넘긴다. 축에 가까운 것과 먼 것이 번갈아 오는 순서이므로 여기서 다시 정렬하지 않는다.
  */
 @Component
 public class TourCandidateCollector {

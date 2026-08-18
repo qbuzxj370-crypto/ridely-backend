@@ -1,5 +1,6 @@
 package kr.ridely.service;
 
+import kr.ridely.common.GeoDistance;
 import kr.ridely.config.RouteProperties;
 import kr.ridely.dao.PoiSpatialDao;
 import kr.ridely.dto.poi.PoiItemDTO;
@@ -31,13 +32,6 @@ public class InfraCandidateCollector {
     private static final String TYPE_REPAIR_SHOP = "REPAIR_SHOP";
     private static final String TYPE_BIKE_STATION = "BIKE_STATION";
 
-    /**
-     * 지구 반지름(m). 축 길이를 재는 데 쓴다.
-     *
-     * BikeRouteIngestServiceImpl에도 같은 상수와 하버사인 식이 있다. 아직 두 곳이라 공통 유틸로 빼지 않았다. 세 번째가 생기면 그때 옮긴다.
-     */
-    private static final double EARTH_RADIUS_M = 6371008.8;
-
     /** 원의 둘레에서 반지름을 얻는 계수. 순환 코스의 검색 반경을 목표 거리에서 유도할 때 쓴다 */
     private static final double CIRCUMFERENCE_TO_RADIUS = 2 * Math.PI;
 
@@ -56,11 +50,11 @@ public class InfraCandidateCollector {
     private static final int NEAR_DUPLICATE_M = 30;
 
     /**
-     * 조회 배수. 근접 중복으로 걸러질 몫을 감안해 목표 개수보다 넉넉히 뽑는다.
+     * 조회 배수. 걸러질 몫을 감안해 목표 개수보다 넉넉히 뽑는다.
      *
-     * 실측 최악이 8건 중 3건(37%)이 중복이었다. 2배면 그보다 나쁜 경우도 흡수한다.
+     * 걸러지는 이유가 둘이다. 근접 중복이 실측 최악 8건 중 3건(37%)이었고, 축 밖 후보가 관광지 48건 중 25건(52%)이었다. 둘이 겹치지 않는다고 보면 목표 개수를 채우는 데 3배가 필요하다.
      */
-    private static final int OVER_FETCH_FACTOR = 2;
+    private static final int OVER_FETCH_FACTOR = 3;
 
     private final PoiSpatialDao poiSpatialDao;
     private final TourCandidateCollector tourCandidateCollector;
@@ -92,17 +86,24 @@ public class InfraCandidateCollector {
         int bikeStationCount = routeProperties.candidateCount(perKm.bikeStation(), targetDistanceKm);
 
         RouteCandidatesDTO candidates = new RouteCandidatesDTO();
-        candidates.setTours(dedupeNearby(tourCandidateCollector.collect(
-                startLng, startLat, endLng, endLat, radiusM, fetchLimit(tourCount)), tourCount));
-        candidates.setWaters(dedupeNearby(toCandidates(TYPE_WATER, poiSpatialDao.findRouteFacilities(
+        candidates.setTours(tourCandidateCollector.collect(
+                startLng, startLat, endLng, endLat, radiusM, fetchLimit(tourCount)));
+        candidates.setWaters(toCandidates(TYPE_WATER, poiSpatialDao.findRouteFacilities(
                 startLng, startLat, endLng, endLat, radiusM, WATER_FACILITY_TYPES,
-                fetchLimit(waterCount))), waterCount));
-        candidates.setRepairShops(dedupeNearby(toCandidates(TYPE_REPAIR_SHOP, poiSpatialDao.findRepairShops(
-                startLng, startLat, endLng, endLat, radiusM, fetchLimit(repairShopCount))), repairShopCount));
-        candidates.setBikeStations(dedupeNearby(toCandidates(TYPE_BIKE_STATION, poiSpatialDao.findBikeStations(
-                startLng, startLat, endLng, endLat, radiusM, fetchLimit(bikeStationCount))), bikeStationCount));
+                fetchLimit(waterCount))));
+        candidates.setRepairShops(toCandidates(TYPE_REPAIR_SHOP, poiSpatialDao.findRepairShops(
+                startLng, startLat, endLng, endLat, radiusM, fetchLimit(repairShopCount))));
+        candidates.setBikeStations(toCandidates(TYPE_BIKE_STATION, poiSpatialDao.findBikeStations(
+                startLng, startLat, endLng, endLat, radiusM, fetchLimit(bikeStationCount))));
 
+        // 진행도를 먼저 채우고 그다음에 자른다. 순서가 반대면 축 밖 후보가 자리를 차지한 채 잘려
+        // 최종 목록이 목표 개수에 못 미친다
         fillProgressRatio(candidates, startLng, startLat, endLng, endLat);
+
+        candidates.setTours(selectOnSpan(candidates.getTours(), tourCount));
+        candidates.setWaters(selectOnSpan(candidates.getWaters(), waterCount));
+        candidates.setRepairShops(selectOnSpan(candidates.getRepairShops(), repairShopCount));
+        candidates.setBikeStations(selectOnSpan(candidates.getBikeStations(), bikeStationCount));
 
         log.debug("후보 수집: 목표 {}km, 반경 {}m — 관광 {} / 급수대 {} / 수리소 {} / 따릉이 {} (합 {})",
                 targetDistanceKm, radiusM, candidates.getTours().size(), candidates.getWaters().size(),
@@ -116,20 +117,39 @@ public class InfraCandidateCollector {
     }
 
     /**
+     * 축을 벗어난 후보를 버리고, 근접 중복을 접은 뒤 목표 개수까지 자른다.
+     *
+     * 축 밖이란 출발지 이전이나 도착지 너머로 투영되는 지점이다. 여의도로 가는 코스에 국립중앙박물관이 후보로 들어오는 식이고, 실측에서 관광지 48건 중 25건이 그랬다. 이런 후보는 들러도 "가는 길"이 아니라 지나쳤다가 되돌아오는 것이라 코스가 성립하지 않는다.
+     *
+     * 버리는 데는 부수 효과가 하나 더 있다. 조회의 distanceM은 축 선분까지의 거리라, 끝점 너머의 점에서는 "옆으로 벗어난 거리"가 아니라 "끝점에서 더 나간 거리"를 뜻한다. 축 밖을 걷어내면 남은 후보의 distanceM이 모두 같은 의미가 되고, 원거리 후보를 뽑는 정렬(PoiSpatialDao.PICK_BOTH_ENDS)도 그제야 의도대로 측면 후보를 집는다.
+     *
+     * 순환 코스는 축이 없어 진행도가 null이다. 그때는 거를 기준이 없으므로 전부 남긴다.
+     */
+    private List<CandidateDTO> selectOnSpan(List<CandidateDTO> fetched, int limit) {
+        List<CandidateDTO> onSpan = fetched.stream()
+                .filter(c -> c.getProgressRatio() == null
+                        || (c.getProgressRatio() >= 0.0 && c.getProgressRatio() <= 1.0))
+                .toList();
+        return dedupeNearby(onSpan, limit);
+    }
+
+    /**
      * 근접 중복을 접고 목표 개수까지 자른다.
      *
-     * 입력은 축에서 가까운 순으로 정렬돼 있으므로 앞엣것을 남기고 뒤엣것을 버린다. 이미 채택한 후보 중 NEAR_DUPLICATE_M 안에 있는 것이 하나라도 있으면 같은 지점으로 본다.
+     * 입력 순서는 조회가 정한 우선순위다. 축에서 가까운 후보와 먼 후보가 번갈아 오므로(PoiSpatialDao.PICK_BOTH_ENDS) 그 순서를 그대로 지켜야 근거리·원거리 비율이 유지된다. 앞엣것을 남기고 뒤엣것을 버리며, 이미 채택한 후보 중 NEAR_DUPLICATE_M 안에 있는 것이 하나라도 있으면 같은 지점으로 본다.
      *
-     * 목록이 최대 30건이라 이중 순회로 둔다. 공간 색인을 쓸 규모가 아니다.
+     * 중복 쌍은 거리가 몇 미터 차이라 우선순위도 서로 붙어 있다. 어느 쪽이 먼저 오든 남는 지점은 같다.
+     *
+     * 목록이 타입당 수백 건을 넘지 않아 이중 순회로 둔다. 상한(candidate-max-count)의 두 배가 실제 입력 크기이고, 그 제곱이어도 한 요청에서 무시할 비용이다. 공간 색인을 쓸 규모가 아니다.
      */
-    private List<CandidateDTO> dedupeNearby(List<CandidateDTO> sortedByDistance, int limit) {
+    private List<CandidateDTO> dedupeNearby(List<CandidateDTO> byPickOrder, int limit) {
         List<CandidateDTO> kept = new ArrayList<>();
-        for (CandidateDTO candidate : sortedByDistance) {
+        for (CandidateDTO candidate : byPickOrder) {
             if (kept.size() >= limit) {
                 break;
             }
             boolean duplicate = kept.stream().anyMatch(k ->
-                    haversineM(k.getLng(), k.getLat(), candidate.getLng(), candidate.getLat())
+                    GeoDistance.haversineM(k.getLng(), k.getLat(), candidate.getLng(), candidate.getLat())
                             < NEAR_DUPLICATE_M);
             if (!duplicate) {
                 kept.add(candidate);
@@ -151,7 +171,7 @@ public class InfraCandidateCollector {
                               Double endLng, Double endLat, double targetDistanceKm) {
         double derivedM;
         if (endLng != null && endLat != null) {
-            double axisKm = haversineM(startLng, startLat, endLng, endLat) / KM_TO_M;
+            double axisKm = GeoDistance.haversineM(startLng, startLat, endLng, endLat) / KM_TO_M;
             double slackKm = Math.max(0, targetDistanceKm - axisKm);
             derivedM = slackKm / SLACK_TO_DETOUR * KM_TO_M;
         } else {
@@ -168,6 +188,8 @@ public class InfraCandidateCollector {
      * 조회 결과의 distanceM은 축에서 수직으로 떨어진 거리라 "경로의 어느 지점인가"를 알려주지 않는다. LLM이 경유지를 순서대로 배치하려면 그 값이 필요하다.
      *
      * 투영은 평면 근사로 한다. 축 길이가 수 km 규모라 위경도를 그대로 벡터로 다뤄도 오차가 무시할 수준이고, 경도는 위도에 따라 좁아지므로 cos(위도)로 보정한다.
+     *
+     * ⚠️ 0~1로 자르지 않는다. 예전에는 잘랐는데, 그러면 축 밖 후보가 전부 0.0이나 1.0이 되어 출발지·도착지에 딱 붙은 후보와 구분되지 않는다. 실제로 서로 다른 관광지 스물다섯 곳이 프롬프트에 모두 "12km 지점"으로 찍혀 나갔다. 범위를 벗어난 값은 벗어난 채로 두어야 selectOnSpan이 걸러낼 수 있다.
      *
      * 도착지가 없는 순환 코스는 축이 없어 진행도를 정의할 수 없다. null로 남기고 프롬프트에서 위치 표현을 생략한다.
      */
@@ -187,21 +209,8 @@ public class InfraCandidateCollector {
         for (CandidateDTO c : candidates.all()) {
             double px = (c.getLng() - startLng) * lngScale;
             double py = c.getLat() - startLat;
-            double ratio = (px * axisX + py * axisY) / axisLengthSquared;
-            // 축 밖으로 벗어난 후보는 양 끝으로 붙인다. 음수 진행도는 의미가 없다
-            c.setProgressRatio(Math.clamp(ratio, 0.0, 1.0));
+            c.setProgressRatio((px * axisX + py * axisY) / axisLengthSquared);
         }
-    }
-
-    /** 두 좌표 사이의 대권 거리(m) */
-    private double haversineM(double lng1, double lat1, double lng2, double lat2) {
-        double phi1 = Math.toRadians(lat1);
-        double phi2 = Math.toRadians(lat2);
-        double dPhi = phi2 - phi1;
-        double dLambda = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
-                + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
-        return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
     }
 
     /** PoiItemDTO를 후보 형태로 줄인다. 프롬프트에 쓰지 않는 필드를 여기서 떨군다 */
