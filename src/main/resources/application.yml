@@ -78,19 +78,31 @@ spring:
       genai:
         chat:
           options:
-            # ⚠️ 2026-07 기준: Gemini 1.5·2.0 전 모델 은퇴(404). 2.5-flash는 무료 티어 확실.
-            #    단 gemini-2.5-flash도 2026-10-16 은퇴 예고 → 결선 진출 시 gemini-3.5-flash 마이그레이션
-            #    (docs/GEMINI_API_SETUP.md 참조)
-            model: gemini-2.5-flash
+            # ⚠️ 2026-08-14: gemini-2.5-flash가 신규 사용자에게 닫혀 전환했다.
+            #    "This model models/gemini-2.5-flash is no longer available to new users" 404.
+            #    예고 은퇴일(10-16)보다 먼저 차단이 걸렸다.
+            #
+            #    모델 선택 기준은 성능이 아니라 무료 한도다. AI Studio 콘솔 실측:
+            #      3.7 Flash        RPM 5  / RPD 20
+            #      3.6 Flash        RPM 5  / RPD 20
+            #      3.5 Flash Lite   RPM 20 / RPD 500   ← 채택
+            #
+            #    우리 파이프라인은 추천 1회에 LLM을 2번 부른다. RPD 20이면 하루 10회가 상한이라
+            #    개발 중 테스트만으로 오전에 소진된다. Lite는 thinking도 기본 minimal이라 응답이 빠르다.
+            #    작업 자체가 "목록에서 3곳 고르기 + 두 문장 쓰기"라 상위 모델의 추론력이 필요 없다.
+            #
+            #    품질이 부족하면 설계만 Lite로 두고 코멘트를 상위 모델로 올린다. 다만 그러면
+            #    코멘트가 RPD 20에 묶인다. 유료 티어 전환이 근본 해결책이다 — DATA_SOURCES 4장.
+            model: gemini-3.5-flash-lite
             temperature: 0.7
-    # pgvector Vector Store — 4주차 RAG 착수 시 재활성 (pom의 pgvector starter 주석과 세트)
+    # pgvector Vector Store — RAG 착수 시 재활성 (pom의 pgvector starter 주석과 세트)
     # vectorstore:
     #   pgvector:
     #     index-type: HNSW
     #     distance-type: COSINE_DISTANCE
     #     dimensions: 768
     #     table-name: riding_history_embedding
-    # 임베딩 — 4주차 RAG 착수 시 재활성 (pom의 vertex embedding starter 주석과 세트)
+    # 임베딩 — RAG 착수 시 재활성 (pom의 vertex embedding starter 주석과 세트)
     # 재활성 전 결정: gemini-embedding-001 호출 경로 (google-genai embedding vs vertex embedding) — ADR-005
     # vertex:
     #   ai:
@@ -234,8 +246,17 @@ ridely:
   ai:
     llm:
       primary-provider: gemini          # gemini | groq | ollama | claude
-      timeout-seconds: 10
+      # 초과하면 실패시킨다. fallback은 아직 없다
+      #
+      # 앞서 관측한 15초 초과는 thinking 지연이 아니라 RPM 한도(5) 초과 재시도였다.
+      # Lite로 옮기며 RPM이 20으로 늘었고 thinking도 minimal이라 원래 값으로 되돌린다.
+      timeout-seconds: 15
       max-retry: 1
+      # 호출별 temperature. spring.ai.google.genai의 전역값(0.7)을 덮어쓴다.
+      # 설계는 구조화 출력이라 낮게 잡는다 — 값이 높으면 없는 id를 만들거나 JSON이 깨진다.
+      # 코멘트는 자연어라 조금 풀어야 트레이너 톤이 산다.
+      design-temperature: 0.2
+      comment-temperature: 0.6
       tone-violation-patterns:          # Coach Ridely 톤 검증
         - "드립니다"
         - "하시기 바랍니다"
@@ -247,7 +268,40 @@ ridely:
 
   # 코스 추천
   route:
-    candidate-radius-km: 8              # InfraCandidateCollector 검색 반경
+    # 후보 수집 반경. 목표 거리에서 유도하고 아래 두 값으로 자른다.
+    #
+    # 하한 1,500m인 이유: 한강 폭이 약 1km라 반대편 강안 시설이 712~1,259m에 있다
+    # (DATA_SOURCES 6.9.1). 노선 연결용 500m와 달리 여기서는 건너편도 후보로 본다.
+    # 짧은 코스라도 이 아래로는 내리지 않는다.
+    candidate-min-radius-m: 1500
+    # 상한. 유도값이 커져도 여기서 멈춘다. 넘어가면 코스와 무관한 지역이 후보로 들어온다.
+    candidate-radius-km: 8
+
+    # 거리 1km당 후보 수. 목표 거리를 곱해 타입별 개수를 정한다.
+    # 12km 코스 기준으로 관광 48 / 급수대 36 / 수리소 18 / 따릉이 18이 나온다.
+    #
+    # 이 값들은 원래 토큰을 아끼려고 1/5 수준이었다. 근거가 없었다. 후보 한 줄이 50토큰
+    # 안팎이라 100건을 다 실어도 5,000 토큰이고, 쓰는 모델의 분당 입력 한도는 250,000이다.
+    #
+    # 다만 올려 보니 실제로 늘어난 것은 관광지와 따릉이뿐이다. 여의도~선유도 축에서
+    # 급수대는 16곳, 수리소는 4곳이 전부라 유도값이 36·18이어도 그만큼밖에 없다.
+    # 이 두 타입은 캡이 아니라 데이터가 상한이다.
+    #
+    # 타입별 비율은 남겨 둔다. 관광지가 가장 높은 이유는 코스의 목적지라 고를 폭이 있어야
+    # 하기 때문이고, 급수대가 그다음인 것은 MVP 구간에 실제로 많아서다 — 176건 중 75건
+    # (DATA_SOURCES 2.2). 수리소·따릉이는 "지나는 김에 들르는" 곳이라 낮게 잡는다.
+    candidate-per-km:
+      tour: 4.0
+      water: 3.0
+      repair-shop: 1.5
+      bike-station: 1.5
+    # 타입별 개수 하한·상한.
+    #
+    # 상한은 토큰 예산이 아니라 요청 유효성 가드다. 목표 거리는 100km까지 받으므로
+    # 유도값이 관광 400건까지 올라가고, 그건 조회·렌더링 양쪽에서 감당할 이유가 없는 크기다.
+    # 실제로 상한에 닿는지는 실측으로 확인하고 조정한다.
+    candidate-min-count: 5
+    candidate-max-count: 100
     cache-ttl-hours: 24
     max-target-distance-km: 100
     danger-zone-alert-distance-m: 200   # 라이딩 모드 근접 알림 거리

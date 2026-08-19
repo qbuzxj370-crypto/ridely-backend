@@ -36,6 +36,9 @@ public class SecurityConfig {
             "/api/v1/auth/logout",
             "/api/v1/pois/**",
             "/api/v1/tours/**",         // 관광지 조회 (비회원도 코스를 짜볼 수 있어야 한다)
+            // 코스 추천도 비회원에게 연다. 가입 전에 서비스를 써보게 하는 것이 이 앱의 진입점이다.
+            // 회원이면 토큰에서 번호를 꺼내 결과에 붙이고, 비회원이면 user_id를 NULL로 저장한다.
+            "/api/v1/routes/**",
             "/api/v1/poc/**",           // 임시 PoC
             // API 문서. 경로는 열려 있지만 문서 기능 자체가 개발 프로파일에서만 켜지므로
             // (application.yml의 springdoc.*.enabled=false가 기본값)

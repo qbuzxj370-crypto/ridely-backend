@@ -30,7 +30,13 @@ public enum ErrorCode {
     AUTH_302("AUTH-302", HttpStatus.UNAUTHORIZED, "다시 로그인해 주세요"),
 
     // POI
-    POI_001("POI-001", HttpStatus.NOT_FOUND, "주변에 POI가 없습니다");
+    POI_001("POI-001", HttpStatus.NOT_FOUND, "주변에 POI가 없습니다"),
+
+    // 코스 추천
+    // 004(추천 실패)·005(회피 라우팅 실패)는 fallback 체계를 만들 때 함께 추가한다.
+    ROUTE_001("ROUTE-001", HttpStatus.BAD_REQUEST, "우선순위 합이 1이 되어야 합니다"),
+    ROUTE_002("ROUTE-002", HttpStatus.BAD_REQUEST, "목표 거리가 적절하지 않습니다"),
+    ROUTE_003("ROUTE-003", HttpStatus.BAD_REQUEST, "서비스 지역이 아닙니다");
 
     private final String code;
     private final HttpStatus httpStatus;

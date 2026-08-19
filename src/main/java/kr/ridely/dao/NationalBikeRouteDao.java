@@ -1,22 +1,92 @@
 package kr.ridely.dao;
 
+import kr.ridely.config.MvpAreaProperties;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * 국토종주 자전거길 노선 DAO.
  *
- * PostGIS 함수(ST_GeomFromText·ST_Length)를 사용하므로 MyBatis가 아닌 JdbcClient를 사용한다 (ADR-002).
+ * PostGIS 함수(ST_GeomFromText·ST_Length·ST_DumpPoints)를 사용하므로 MyBatis가 아닌 JdbcClient를 사용한다 (ADR-002).
  */
 @Repository
 public class NationalBikeRouteDao {
 
-    private final JdbcClient jdbcClient;
+    /**
+     * 연장점 거리 허용 폭.
+     *
+     * 노선 좌표는 이미 찍혀 있는 점들이라 원하는 거리에 정확히 놓인 점이 있으리라는 보장이 없다. ±10% 안에서 찾는다.
+     */
+    private static final double DISTANCE_BAND = 0.1;
 
-    public NationalBikeRouteDao(JdbcClient jdbcClient) {
+    private final JdbcClient jdbcClient;
+    private final MvpAreaProperties mvpArea;
+
+    public NationalBikeRouteDao(JdbcClient jdbcClient, MvpAreaProperties mvpArea) {
         this.jdbcClient = jdbcClient;
+        this.mvpArea = mvpArea;
+    }
+
+    /**
+     * 자전거도로 위에서 출발지로부터 일정 거리 떨어진 점을 찾는다. 코스가 목표 거리에 못 미칠 때 앞쪽에 붙여 왕복으로 거리를 늘리는 데 쓴다.
+     *
+     * 방향은 도착지 반대쪽이다. 도착지 쪽으로 연장하면 그냥 지름길이 되어 거리가 늘지 않는다. 후보 점들 중 도착지에서 가장 먼 것을 고르는 방식으로 방향을 정한다. 순환 코스는 도착지가 출발지와 같아 결과적으로 가장 멀리 나가는 점이 뽑힌다.
+     *
+     * ⚠️ ST_LineInterpolatePoint를 쓰지 않는다. line_geom이 MULTILINESTRING이고 저 함수는 LINESTRING만 받는다. ST_LineMerge로 합칠 수는 있지만 노선이 끊겨 있으면 여전히 MULTILINESTRING이 나와 갈래 선택 문제가 남는다. 노선 좌표를 그대로 풀어 거리로 거르는 편이 단순하고 형상 종류를 안 탄다.
+     *
+     * 서비스 지역 밖은 제외한다. 목표 거리가 크면 요구 거리도 커져서 노선을 따라 서울 밖까지 나갈 수 있다.
+     *
+     * @param awayFromLng 이 지점에서 멀어지는 방향으로 찾는다. 보통 도착지
+     * @param extensionM  출발지에서 이만큼 떨어진 점을 찾는다
+     * @return [경도, 위도]. 조건에 맞는 점이 없으면 비어 있다
+     */
+    public Optional<double[]> findExtensionPoint(double startLng, double startLat,
+                                                 double awayFromLng, double awayFromLat,
+                                                 int extensionM) {
+        /*
+         * [핵심 구문]
+         *   <->                거리 순 정렬 연산자. 출발지에서 가장 가까운 노선 하나만 고른다.
+         *                      이 제한이 없으면 전국 노선의 좌표를 전부 풀게 된다.
+         *   ST_DumpPoints      노선 형상을 좌표 하나하나로 푼다. MULTILINESTRING도 그대로 받는다.
+         *   LATERAL            앞 CTE의 형상을 인자로 넘겨야 하므로 필요하다.
+         *   ST_MakeEnvelope    서비스 지역 사각형. 좌표가 이 밖이면 버린다.
+         */
+        String sql = """
+                WITH anchor AS (
+                    SELECT ST_SetSRID(ST_MakePoint(:startLng,    :startLat),    4326) AS s,
+                           ST_SetSRID(ST_MakePoint(:awayFromLng, :awayFromLat), 4326) AS a
+                ),
+                nearest_route AS (
+                    SELECT r.line_geom
+                    FROM national_bike_route r, anchor
+                    ORDER BY r.line_geom <-> anchor.s
+                    LIMIT 1
+                )
+                SELECT ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat
+                FROM nearest_route, anchor, LATERAL ST_DumpPoints(nearest_route.line_geom) p
+                WHERE ST_DWithin(p.geom::geography, anchor.s::geography, :maxM)
+                  AND ST_Distance(p.geom::geography, anchor.s::geography) >= :minM
+                  AND p.geom && ST_MakeEnvelope(:minLng, :minLat, :maxLng, :maxLat, 4326)
+                ORDER BY ST_Distance(p.geom::geography, anchor.a::geography) DESC
+                LIMIT 1
+                """;
+
+        return jdbcClient.sql(sql)
+                .param("startLng", startLng)
+                .param("startLat", startLat)
+                .param("awayFromLng", awayFromLng)
+                .param("awayFromLat", awayFromLat)
+                .param("minM", extensionM * (1 - DISTANCE_BAND))
+                .param("maxM", extensionM * (1 + DISTANCE_BAND))
+                .param("minLng", mvpArea.minLng())
+                .param("minLat", mvpArea.minLat())
+                .param("maxLng", mvpArea.maxLng())
+                .param("maxLat", mvpArea.maxLat())
+                .query((rs, rowNum) -> new double[]{rs.getDouble("lng"), rs.getDouble("lat")})
+                .optional();
     }
 
     /**

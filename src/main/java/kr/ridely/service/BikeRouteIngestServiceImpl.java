@@ -1,5 +1,6 @@
 package kr.ridely.service;
 
+import kr.ridely.common.GeoDistance;
 import kr.ridely.dao.NationalBikeRouteDao;
 import kr.ridely.dto.poi.BikeRouteIngestResultDTO;
 import kr.ridely.infra.seed.BikeRouteCsvReader;
@@ -37,9 +38,6 @@ public class BikeRouteIngestServiceImpl implements BikeRouteIngestService {
      * 그 사이가 안정 지대다. 상세·교차검증은 docs/shared/SCHEMA_CHANGE_ROUTE_GEOM.md 4장.
      */
     private static final double PART_SPLIT_THRESHOLD_M = 3000.0;
-
-    /** 지구 평균 반지름 (m) */
-    private static final double EARTH_RADIUS_M = 6371008.8;
 
     /**
      * 노선 코드 → 노선 정보.
@@ -193,17 +191,11 @@ public class BikeRouteIngestServiceImpl implements BikeRouteIngestService {
      * 두 좌표 사이 대권 거리 (m).
      *
      * PostGIS를 거치지 않고 자바에서 재는 이유: 파트를 나눈 뒤에야 WKT를 만들 수 있어
-     * DB에 넣기 전에 판정이 끝나야 한다. 분석에 쓴 것과 같은 식(R=6371008.8m)이라
+     * DB에 넣기 전에 판정이 끝나야 한다. GeoDistance가 쓰는 반지름이 분석 때와 같은 값이라
      * SCHEMA_CHANGE_ROUTE_GEOM.md의 수치와 직접 대조된다.
      */
     private double distanceM(Coordinate a, Coordinate b) {
-        double lat1 = Math.toRadians(a.getLat());
-        double lat2 = Math.toRadians(b.getLat());
-        double dLat = lat2 - lat1;
-        double dLng = Math.toRadians(b.getLng() - a.getLng());
-        double h = Math.pow(Math.sin(dLat / 2), 2)
-                + Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(dLng / 2), 2);
-        return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+        return GeoDistance.haversineM(a.getLng(), a.getLat(), b.getLng(), b.getLat());
     }
 
     /** 코드북·공식 안내에서 옮긴 노선 정보 */

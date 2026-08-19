@@ -233,10 +233,33 @@
                spring-ai-starter-model-vertex-ai-gemini (1.x에서 정상)
         -->
 
-        <!-- LLM 채팅 + Structured Output (Gemini Developer API ↔ Vertex AI 전환 가능) -->
+        <!-- LLM 채팅 + Structured Output (Gemini Developer API ↔ Vertex AI 전환 가능)
+
+             commons-logging 제외 이유:
+               Spring은 spring-jcl을 내장한다. commons-logging과 패키지·클래스명이
+               (org.apache.commons.logging.LogFactory) 같으면서 실제로는 SLF4J로 넘겨,
+               Logback 설정 하나로 전부 통제되게 하는 대체 구현이다.
+
+               진짜 commons-logging.jar가 함께 있으면 같은 이름의 클래스가 둘이 되고
+               어느 쪽이 로드될지는 클래스패스 순서에 달린다. 진짜 쪽이 이기면 그걸 쓰는
+               라이브러리 로그가 Logback을 우회해 로그 레벨 설정이 먹지 않는다.
+
+               경로는 하나다 (dependency:tree 확인):
+                 spring-ai-starter-model-google-genai
+                   -> spring-ai-google-genai -> google-genai
+                   -> httpcomponents:httpclient 4.5.14 -> commons-logging 1.2
+               Boot 스타터는 이걸 자동 제외하지만 Spring AI 스타터는 하지 않는다.
+
+               빼도 httpclient는 정상 동작한다. JCL API를 부르면 spring-jcl이 응답한다. -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-google-genai</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- 임베딩 (text-embedding-004, 768차원) 배포 단계에서 활성화-->
