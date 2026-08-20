@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 /**
  * 추천된 코스가 통과하는 사고다발지역 하나.
  *
@@ -27,7 +29,8 @@ import lombok.Setter;
  *   "occurrenceCount": 8,
  *   "deathCount": 0,
  *   "lat": 37.5400, "lng": 126.9355,
- *   "polygonGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[...]}"
+ *   "polygonGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[...]}",
+ *   "distanceFromStartKm": 3.2
  * }
  */
 @Getter
@@ -68,4 +71,13 @@ public class PassingDangerZoneDTO {
      * 원본 데이터에 폴리곤이 없으면 null (이 경우 중심점만 표시).
      */
     private String polygonGeoJson;
+
+    /**
+     * 출발지에서 이 구역까지의 주행 거리(km).
+     *
+     * 코스 형상 위에 구역 중심을 투영해 잰 값이다. WaypointDTO의 같은 이름 필드와 달리 직선 축이 아니라 실제 경로를 따른 거리이므로 정확하다.
+     *
+     * 라이딩 중 "3.2km 지점에 사고다발지"처럼 미리 알리는 데 쓴다.
+     */
+    private BigDecimal distanceFromStartKm;
 }
