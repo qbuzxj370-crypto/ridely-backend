@@ -7,12 +7,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.template.TemplateRenderer;
-import org.springframework.ai.template.ValidationMode;
 import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -45,16 +46,26 @@ public class StructuredLlmCaller {
     private final LlmProperties properties;
 
     /**
+     * StringTemplate 반복문의 지역 인자 이름.
+     *
+     * 검증기는 "템플릿에 있는데 넘긴 값에 없는 이름"을 미치환으로 보는데, 반복문의 지역 인자까지 그렇게 잡는다. 후보 목록을 &lt;tours:{c|...}&gt; 로 도는 순간 c가 걸린다.
+     *
+     * 그래서 같은 이름을 빈 값으로 함께 넘긴다. 하위 템플릿의 형식 인자는 그 범위 안에서 전역 값을 가리므로 렌더링 결과는 달라지지 않고, 검증기의 "넘긴 값" 목록에만 이름이 올라간다.
+     *
+     * ⚠️ 반복문 인자는 반드시 이 목록에 있는 이름을 쓴다. 새 이름을 쓰면 렌더링이 실패한다 — 검증이 THROW이기 때문이다. 실패하는 편이 낫다고 본 이유는 아래 렌더러 주석에 있다.
+     */
+    private static final List<String> LOOP_PARAMETERS = List.of("c", "w", "z");
+
+    /**
      * 프롬프트 렌더러.
      *
-     * ⚠️ 검증을 WARN으로 낮춘 이유가 있다. 기본값 THROW는 "템플릿에 있는데 넘긴 값에 없는 이름"을 전부 미치환으로 보는데, StringTemplate 반복문의 지역 인자까지 그렇게 잡는다. 후보 목록을 &lt;tours:{c|...}&gt; 로 도는 순간 c가 미치환 변수로 걸려 렌더링 자체가 실패한다.
+     * 검증은 기본값 THROW를 쓴다. 치환자가 빠지면 빈 문자열로 렌더링되는데, 그러면 LLM은 불완전한 지시를 받고도 그럴듯한 결과를 계속 내놓는다. "약 km를 더 채워야 합니다" 같은 문장이 나가도 응답만 봐서는 알 수 없다. 조용한 품질 저하보다 즉시 실패가 낫다.
      *
-     * 반복문을 포기하면 목록 조립이 Java로 돌아오므로 검증을 낮추는 쪽을 택했다. WARN이어도 값이 정말 빠지면 로그에는 남는다.
+     * 한때 이 검증을 WARN으로 낮춰 뒀었다. 반복문 지역 인자가 미치환으로 잡혀 렌더링이 통째로 실패했기 때문이다. LOOP_PARAMETERS로 그 원인을 없앴으므로 기본값으로 되돌린다.
      */
     private final TemplateRenderer templateRenderer = StTemplateRenderer.builder()
             .startDelimiterToken(START_DELIMITER)
             .endDelimiterToken(END_DELIMITER)
-            .validationMode(ValidationMode.WARN)
             .build();
 
     public StructuredLlmCaller(ChatClient.Builder chatClientBuilder, LlmProperties properties) {
@@ -79,11 +90,12 @@ public class StructuredLlmCaller {
                       Map<String, Object> variables, double temperature, Class<T> responseType) {
 
         long startedAt = System.currentTimeMillis();
+        Map<String, Object> params = withLoopParameters(variables);
         try {
             T result = CompletableFuture
                     .supplyAsync(() -> chatClient.prompt()
                             .system(s -> s.text(systemPrompt, StandardCharsets.UTF_8))
-                            .user(u -> u.text(userPrompt, StandardCharsets.UTF_8).params(variables))
+                            .user(u -> u.text(userPrompt, StandardCharsets.UTF_8).params(params))
                             .templateRenderer(templateRenderer)
                             .options(ChatOptions.builder().temperature(temperature).build())
                             .call()
@@ -106,5 +118,17 @@ public class StructuredLlmCaller {
             }
             throw new BusinessException(ErrorCode.COMMON_500);
         }
+    }
+
+    /**
+     * 반복문 지역 인자를 빈 값으로 덧붙인다.
+     *
+     * 호출부의 맵을 건드리지 않으려고 새로 만든다. 호출부가 넘긴 값이 우선이므로 같은 이름을 진짜 변수로 쓰더라도 덮이지 않는다.
+     */
+    private Map<String, Object> withLoopParameters(Map<String, Object> variables) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        LOOP_PARAMETERS.forEach(name -> params.put(name, ""));
+        params.putAll(variables);
+        return params;
     }
 }

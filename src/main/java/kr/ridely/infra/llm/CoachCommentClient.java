@@ -3,6 +3,7 @@ package kr.ridely.infra.llm;
 import kr.ridely.dto.route.CandidateDTO;
 import kr.ridely.dto.route.CoachCommentDTO;
 import kr.ridely.dto.route.CourseDesignDTO;
+import kr.ridely.dto.route.PassingDangerZoneDTO;
 import kr.ridely.dto.route.RouteCandidatesDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,16 @@ public class CoachCommentClient {
     private static final String TYPE_WATER = "WATER";
     private static final String WATER_LABEL = "급수대";
 
+    /**
+     * 위험 등급 표시명.
+     *
+     * 저장값은 영문인데 프롬프트에는 한국어로 준다. 톤 지시가 "주의는 살피면서, 경고는 페이스를 늦춰요"처럼 한국어라 등급도 같은 말로 두어야 대응이 분명해진다.
+     */
+    private static final Map<String, String> DANGER_LEVEL_LABELS = Map.of(
+            "CAUTION", "주의",
+            "WARNING", "경고",
+            "DANGER", "위험");
+
     private final StructuredLlmCaller llmCaller;
     private final LlmProperties properties;
     private final Resource systemPrompt;
@@ -55,13 +66,16 @@ public class CoachCommentClient {
      * @param totalDistanceKm  ORS가 계산한 실제 거리
      * @param durationMin      예상 소요 시간(분)
      * @param intensityLevel   산출된 운동 강도
+     * @param dangerZones      코스가 지나는 사고다발지역. 비어 있으면 경고문을 만들지 않는다
      */
     public CoachCommentDTO generate(CourseDesignDTO design, RouteCandidatesDTO candidates,
                                     double targetDistanceKm, boolean circular,
                                     double totalDistanceKm,
-                                    int durationMin, String intensityLevel) {
+                                    int durationMin, String intensityLevel,
+                                    List<PassingDangerZoneDTO> dangerZones) {
 
         Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("dangerZones", toDangerRows(dangerZones));
         variables.put("routeShape", circular ? "출발지로 되돌아오는 순환 코스" : "출발지에서 도착지까지 가는 편도 코스");
         variables.put("totalDistanceKm", String.valueOf(totalDistanceKm));
         variables.put("durationMin", String.valueOf(durationMin));
@@ -123,6 +137,37 @@ public class CoachCommentClient {
             rows.add(row);
         }
         return rows;
+    }
+
+    /**
+     * 사고다발지를 템플릿이 읽을 수 있는 형태로 바꾼다.
+     *
+     * 사고 건수와 사망자 수를 한 문장으로 미리 합친다. 템플릿에서 조건 분기로 나누면 StringTemplate 하위 템플릿 안에 if가 들어가는데, 그 조합은 렌더링 검증과 부딪혀 이미 한 번 깨진 적이 있다. 포맷은 Java가, 배치는 템플릿이 맡는다.
+     *
+     * 등급은 한국어 표시명으로 바꾼다. 매핑에 없는 값이 오면 원본을 그대로 둔다 — 스키마 제약이 세 값만 허용하므로 실제로는 오지 않지만, 여기서 조용히 빈 값이 되는 것보다 낫다.
+     */
+    private List<Map<String, String>> toDangerRows(List<PassingDangerZoneDTO> zones) {
+        if (zones == null) {
+            return List.of();
+        }
+        return zones.stream().map(z -> {
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("progressKm", z.getDistanceFromStartKm() == null
+                    ? "?" : z.getDistanceFromStartKm().toPlainString());
+            row.put("level", DANGER_LEVEL_LABELS.getOrDefault(z.getDangerLevel(), z.getDangerLevel()));
+            row.put("name", orEmpty(z.getSpotName()));
+            row.put("detail", dangerDetail(z));
+            return row;
+        }).toList();
+    }
+
+    /** 사망자가 있으면 반드시 드러낸다. 등급이 DANGER로 올라가는 유일한 다른 조건이다 */
+    private String dangerDetail(PassingDangerZoneDTO zone) {
+        int deaths = zone.getDeathCount() == null ? 0 : zone.getDeathCount();
+        int occurrences = zone.getOccurrenceCount() == null ? 0 : zone.getOccurrenceCount();
+        return deaths > 0
+                ? "최근 1년 사고 %d건, 사망 %d명".formatted(occurrences, deaths)
+                : "최근 1년 사고 %d건".formatted(occurrences);
     }
 
     /** 급수대는 원본 이름이 전부 노선명이라 구분에 쓸 수 없다 — DATA_SOURCES 6.1의 5번 */
