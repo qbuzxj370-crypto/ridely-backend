@@ -4,11 +4,13 @@ import kr.ridely.common.BusinessException;
 import kr.ridely.common.GeoDistance;
 import kr.ridely.common.ErrorCode;
 import kr.ridely.config.MvpAreaProperties;
+import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.NationalBikeRouteDao;
 import kr.ridely.dao.RouteDao;
 import kr.ridely.dto.route.CandidateDTO;
 import kr.ridely.dto.route.CoachCommentDTO;
 import kr.ridely.dto.route.CourseDesignDTO;
+import kr.ridely.dto.route.PassingDangerZoneDTO;
 import kr.ridely.dto.route.RouteCandidatesDTO;
 import kr.ridely.dto.route.RouteRecommendRequestDTO;
 import kr.ridely.dto.route.RouteRecommendResponseDTO;
@@ -79,6 +81,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final MvpAreaProperties mvpArea;
     private final RouteDao routeDao;
     private final NationalBikeRouteDao nationalBikeRouteDao;
+    private final AccidentZoneSpatialDao accidentZoneSpatialDao;
     private final LlmProperties llmProperties;
 
     public RouteRecommendServiceImpl(InfraCandidateCollector candidateCollector,
@@ -90,8 +93,10 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                                      MvpAreaProperties mvpArea,
                                      RouteDao routeDao,
                                      NationalBikeRouteDao nationalBikeRouteDao,
+                                     AccidentZoneSpatialDao accidentZoneSpatialDao,
                                      LlmProperties llmProperties) {
         this.nationalBikeRouteDao = nationalBikeRouteDao;
+        this.accidentZoneSpatialDao = accidentZoneSpatialDao;
         this.candidateCollector = candidateCollector;
         this.courseDesignClient = courseDesignClient;
         this.coachCommentClient = coachCommentClient;
@@ -146,17 +151,22 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                 orsClient.route(coordinates), coordinates, targetDistanceKm,
                 startLng, startLat, endLng, endLat);
 
+        // 거리 보정이 끝난 최종 형상으로 판정한다. 보정 전에 하면 연장 구간에서
+        // 새로 지나가게 된 구역을 통째로 놓친다
+        List<PassingDangerZoneDTO> dangerZones =
+                accidentZoneSpatialDao.findPassing(route.getGeometryGeoJson());
+
         String intensityLevel = intensityCalculator.calculate(route.distanceKm());
         CoachCommentDTO comment = coachCommentClient.generate(
                 design, candidates, targetDistanceKm, circular,
-                route.distanceKm(), route.durationMin(), intensityLevel);
+                route.distanceKm(), route.durationMin(), intensityLevel, dangerZones);
 
-        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, {}, 총 {}ms",
-                targetDistanceKm, route.distanceKm(), waypoints.size(), intensityLevel,
-                System.currentTimeMillis() - startedAt);
+        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳, {}, 총 {}ms",
+                targetDistanceKm, route.distanceKm(), waypoints.size(), dangerZones.size(),
+                intensityLevel, System.currentTimeMillis() - startedAt);
 
         RouteRecommendResponseDTO response =
-                assemble(route, waypoints, design, comment, intensityLevel);
+                assemble(route, waypoints, design, comment, intensityLevel, dangerZones);
 
         RouteDao.Saved saved = routeDao.insert(request, response, userId, llmProperties.primaryProvider());
         response.setRecommendedRouteId(saved.recommendedRouteId());
@@ -277,7 +287,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
 
     private RouteRecommendResponseDTO assemble(OrsRouteResult route, List<CandidateDTO> waypoints,
                                                CourseDesignDTO design, CoachCommentDTO comment,
-                                               String intensityLevel) {
+                                               String intensityLevel,
+                                               List<PassingDangerZoneDTO> dangerZones) {
         RouteRecommendResponseDTO response = new RouteRecommendResponseDTO();
 
         // recommendedRouteId와 createdAt은 영속 단계에서 채운다
@@ -287,11 +298,11 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         response.setTotalDescentM((int) Math.round(route.getDescentM()));
         response.setIntensityLevel(intensityLevel);
         response.setRouteGeoJson(route.getGeometryGeoJson());
+        // 회피 경로는 아직 만들지 않았다. 지나가는 곳을 알려주기만 하고 피해 가지는 않는다
         response.setAvoidDangerZonesApplied(false);
 
         response.setWaypoints(toWaypointDtos(waypoints, design, route.distanceKm()));
-        // 사고다발지 통과 판정이 아직 없다. 빈 목록이지 "통과하는 곳이 없다"는 뜻이 아니다
-        response.setPassingDangerZones(List.of());
+        response.setPassingDangerZones(dangerZones);
 
         response.setAiTitle(comment.getTitle());
         response.setAiHighlights(comment.highlightsOrEmpty());
