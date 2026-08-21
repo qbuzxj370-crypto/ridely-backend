@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ridely.dao.UserSettingsDao">
+
+    <!--
+        사고다발지 회피 설정 조회.
+        컬럼이 NOT NULL DEFAULT FALSE라 행이 있으면 값도 반드시 있다.
+        행 자체가 없을 때만 null이 나오고, 그 구분을 위해 반환 타입이 Boolean이다.
+    -->
+    <select id="selectAvoidDangerZones" resultType="java.lang.Boolean">
+        SELECT avoid_danger_zones
+        FROM user_settings
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>
