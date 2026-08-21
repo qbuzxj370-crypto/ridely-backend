@@ -80,7 +80,15 @@ public class RouteRecommendResponseDTO {
      */
     private String routeGeoJson;
 
-    /** 사고다발지역 회피 기능이 실제로 적용됐는지 여부 */
+    /**
+     * 사고다발지역 회피 정책이 적용됐는지 여부.
+     *
+     * ⚠️ <b>"모든 사고다발지를 피했다"는 뜻이 아니다.</b> 회피는 위험 등급을 가려서 하며, 대상에서 뺀 등급은 그대로 지나간다. 그래서 이 값이 true여도 passingDangerZones에 항목이 있는 것이 정상이다. 어느 등급을 피하는지는 설정(ridely.route.avoid-danger-levels)에 있다.
+     *
+     * false가 되는 경우가 둘이다. 사용자가 회피를 끄지 않았어도, 피해 가는 경로를 찾지 못하면 회피 없이 그린 뒤 이 값을 false로 둔다. 사고다발지는 교차로에 생기고 그 교차로가 유일한 통로일 수 있어서다.
+     *
+     * 화면에 "안전 경로"라고 단정해 표시하면 안 된다. 지나는 구역은 passingDangerZones로 함께 보여 줘야 한다.
+     */
     private Boolean avoidDangerZonesApplied;
 
 
