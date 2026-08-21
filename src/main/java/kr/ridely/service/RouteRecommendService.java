@@ -41,8 +41,4 @@ public interface RouteRecommendService {
      * @throws kr.ridely.common.BusinessException 없으면 COMMON-004
      */
     RouteRecommendResponseDTO findById(long recommendedRouteId);
-
-    default RouteRecommendResponseDTO recommend(RouteRecommendRequestDTO request, Long userId) {
-        return recommend(request, userId, null);
-    }
 }
