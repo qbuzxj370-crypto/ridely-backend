@@ -168,7 +168,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         String intensityLevel = intensityCalculator.calculate(route.distanceKm());
         CoachCommentDTO comment = coachCommentClient.generate(
                 design, candidates, targetDistanceKm, circular,
-                route.distanceKm(), route.durationMin(), intensityLevel, dangerZones);
+                route.distanceKm(), route.durationMin(), intensityLevel,
+                dangerZones, routed.avoidApplied());
 
         log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳(회피 {}), {}, 총 {}ms",
                 targetDistanceKm, route.distanceKm(), waypoints.size(), dangerZones.size(),
