@@ -4,9 +4,11 @@ import kr.ridely.common.BusinessException;
 import kr.ridely.common.GeoDistance;
 import kr.ridely.common.ErrorCode;
 import kr.ridely.config.MvpAreaProperties;
+import kr.ridely.config.RouteProperties;
 import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.NationalBikeRouteDao;
 import kr.ridely.dao.RouteDao;
+import kr.ridely.dao.UserSettingsDao;
 import kr.ridely.dto.route.CandidateDTO;
 import kr.ridely.dto.route.CoachCommentDTO;
 import kr.ridely.dto.route.CourseDesignDTO;
@@ -82,6 +84,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final RouteDao routeDao;
     private final NationalBikeRouteDao nationalBikeRouteDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
+    private final UserSettingsDao userSettingsDao;
+    private final RouteProperties routeProperties;
     private final LlmProperties llmProperties;
 
     public RouteRecommendServiceImpl(InfraCandidateCollector candidateCollector,
@@ -94,9 +98,13 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                                      RouteDao routeDao,
                                      NationalBikeRouteDao nationalBikeRouteDao,
                                      AccidentZoneSpatialDao accidentZoneSpatialDao,
+                                     UserSettingsDao userSettingsDao,
+                                     RouteProperties routeProperties,
                                      LlmProperties llmProperties) {
+        this.routeProperties = routeProperties;
         this.nationalBikeRouteDao = nationalBikeRouteDao;
         this.accidentZoneSpatialDao = accidentZoneSpatialDao;
+        this.userSettingsDao = userSettingsDao;
         this.candidateCollector = candidateCollector;
         this.courseDesignClient = courseDesignClient;
         this.coachCommentClient = coachCommentClient;
@@ -109,7 +117,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     }
 
     @Override
-    public RouteRecommendResponseDTO recommend(RouteRecommendRequestDTO request, Long userId) {
+    public RouteRecommendResponseDTO recommend(RouteRecommendRequestDTO request, Long userId,
+                                               Boolean avoidHeader) {
         long startedAt = System.currentTimeMillis();
 
         BigDecimal convenience = orDefault(request.getPriorityConvenience(), DEFAULT_CONVENIENCE);
@@ -146,10 +155,10 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                 convenience, exercise, scenery);
         List<CandidateDTO> waypoints = resolveWaypoints(design, candidates);
 
-        List<double[]> coordinates = toCoordinates(startLng, startLat, endLng, endLat, waypoints);
-        OrsRouteResult route = extendIfShort(
-                orsClient.route(coordinates), coordinates, targetDistanceKm,
-                startLng, startLat, endLng, endLat);
+        String avoidGeometry = resolveAvoidGeometry(userId, avoidHeader);
+        Routed routed = routeWithAvoidFallback(
+                avoidGeometry, targetDistanceKm, startLng, startLat, endLng, endLat, waypoints);
+        OrsRouteResult route = routed.route();
 
         // 거리 보정이 끝난 최종 형상으로 판정한다. 보정 전에 하면 연장 구간에서
         // 새로 지나가게 된 구역을 통째로 놓친다
@@ -161,12 +170,13 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                 design, candidates, targetDistanceKm, circular,
                 route.distanceKm(), route.durationMin(), intensityLevel, dangerZones);
 
-        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳, {}, 총 {}ms",
+        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳(회피 {}), {}, 총 {}ms",
                 targetDistanceKm, route.distanceKm(), waypoints.size(), dangerZones.size(),
+                routed.avoidApplied() ? "적용" : "미적용",
                 intensityLevel, System.currentTimeMillis() - startedAt);
 
-        RouteRecommendResponseDTO response =
-                assemble(route, waypoints, design, comment, intensityLevel, dangerZones);
+        RouteRecommendResponseDTO response = assemble(
+                route, waypoints, design, comment, intensityLevel, dangerZones, routed.avoidApplied());
 
         RouteDao.Saved saved = routeDao.insert(request, response, userId, llmProperties.primaryProvider());
         response.setRecommendedRouteId(saved.recommendedRouteId());
@@ -210,6 +220,74 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         return resolved;
     }
 
+    /** 경로와 회피 적용 여부. 회피는 실패하면 꺼지므로 결과와 함께 돌려줘야 한다 */
+    private record Routed(OrsRouteResult route, boolean avoidApplied) {
+    }
+
+    /**
+     * 회피를 요청했는지 판정한다.
+     *
+     * 회원은 저장된 설정을, 비회원은 요청 헤더를 본다. 회원이 헤더를 함께 보내도 설정이 이긴다 — 설정 화면에서 끈 것을 헤더로 되살릴 수 있으면 설정의 의미가 없다.
+     */
+    private boolean isAvoidRequested(Long userId, Boolean avoidHeader) {
+        if (userId == null) {
+            return Boolean.TRUE.equals(avoidHeader);
+        }
+        Boolean saved = userSettingsDao.selectAvoidDangerZones(userId);
+        if (saved == null) {
+            // 가입 트랜잭션이 기본값 행을 만들므로 정상 회원에게는 없을 수 없다.
+            // 없다면 데이터가 어긋난 것이라 조용히 넘기지 않는다
+            log.warn("회원 설정 행이 없다: userId={}. 회피를 끈 것으로 본다", userId);
+        }
+        return Boolean.TRUE.equals(saved);
+    }
+
+    /**
+     * 회피할 도형을 가져온다.
+     *
+     * @return 회피할 도형. 회피를 끈 경우나 대상 구역이 없으면 null
+     */
+    private String resolveAvoidGeometry(Long userId, Boolean avoidHeader) {
+        if (!isAvoidRequested(userId, avoidHeader)) {
+            return null;
+        }
+        // 무엇을 피할지가 곧 거리를 조절하는 손잡이다. 전 등급을 피하면 우회가 커져
+        // 목표 거리를 크게 넘긴다 — 근거는 application.yml의 avoid-danger-levels 주석
+        return accidentZoneSpatialDao.findAvoidGeometry(routeProperties.avoidDangerLevels())
+                .orElse(null);
+    }
+
+    /**
+     * 회피를 적용해 경로를 그리고, 실패하면 회피 없이 다시 그린다.
+     *
+     * 사고다발지는 교차로에 생기고 그 교차로가 유일한 통로일 수 있다. 그때 라우팅 엔진은 경로를 찾지 못한다. 코스를 아예 못 주는 것보다 회피를 포기하고 주는 편이 낫고, 대신 응답의 avoidDangerZonesApplied로 그 사실을 알린다.
+     *
+     * 재시도 시 좌표를 새로 만든다. 거리 보정이 연장점을 목록에 끼워 넣기 때문에 실패한 목록을 그대로 다시 쓰면 회피 없이 그리려던 경로에 그 점이 남는다.
+     */
+    private Routed routeWithAvoidFallback(String avoidGeometry, double targetDistanceKm,
+                                          double startLng, double startLat,
+                                          Double endLng, Double endLat,
+                                          List<CandidateDTO> waypoints) {
+        if (avoidGeometry != null) {
+            try {
+                List<double[]> coordinates =
+                        toCoordinates(startLng, startLat, endLng, endLat, waypoints);
+                OrsRouteResult route = extendIfShort(
+                        orsClient.route(coordinates, avoidGeometry), coordinates, avoidGeometry,
+                        targetDistanceKm, startLng, startLat, endLng, endLat);
+                return new Routed(route, true);
+            } catch (BusinessException e) {
+                log.warn("회피 경로를 찾지 못했다. 회피 없이 다시 그린다 — 사고다발지가 유일한 통로일 수 있다");
+            }
+        }
+
+        List<double[]> coordinates = toCoordinates(startLng, startLat, endLng, endLat, waypoints);
+        OrsRouteResult route = extendIfShort(
+                orsClient.route(coordinates, null), coordinates, null,
+                targetDistanceKm, startLng, startLat, endLng, endLat);
+        return new Routed(route, false);
+    }
+
     /**
      * 목표 거리에 못 미치면 경로를 한 번 늘려 다시 잰다.
      *
@@ -219,10 +297,13 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
      *
      * 보정은 한 번만 한다. 수렴 루프를 만들지 않는 이유는 ORS 호출이 그만큼 늘고, 한 번 보정으로 얼마나 맞는지를 아직 모르기 때문이다. 실측을 쌓아 보고 필요하면 늘린다.
      *
-     * @param coordinates 1차 호출에 쓴 좌표. 보정 시 이 목록에 연장점을 끼워 넣는다
+     * 회피 도형은 1차 호출과 같은 값을 그대로 넘긴다. 보정으로 늘어난 구간에서 사고다발지를 다시 밟으면 회피가 무의미해진다.
+     *
+     * @param coordinates    1차 호출에 쓴 좌표. 보정 시 이 목록에 연장점을 끼워 넣는다
+     * @param avoidGeometry  회피할 도형. null이면 회피하지 않는다
      */
     private OrsRouteResult extendIfShort(OrsRouteResult route, List<double[]> coordinates,
-                                         double targetDistanceKm,
+                                         String avoidGeometry, double targetDistanceKm,
                                          double startLng, double startLat,
                                          Double endLng, Double endLat) {
         if (route.distanceKm() >= targetDistanceKm * DISTANCE_TOLERANCE) {
@@ -245,7 +326,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
 
         // 출발 직후에 넣는다. 나갔다 돌아온 뒤 원래 경유지를 설계 순서대로 지난다
         coordinates.add(1, extensionPoint.get());
-        OrsRouteResult extended = orsClient.route(coordinates);
+        OrsRouteResult extended = orsClient.route(coordinates, avoidGeometry);
 
         // 늘린 결과가 오히려 목표에서 더 멀면 버린다. 연장점 거리는 직선 기준 추정이라
         // 실제 도로를 따라가면 크게 넘길 수 있다
@@ -288,7 +369,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private RouteRecommendResponseDTO assemble(OrsRouteResult route, List<CandidateDTO> waypoints,
                                                CourseDesignDTO design, CoachCommentDTO comment,
                                                String intensityLevel,
-                                               List<PassingDangerZoneDTO> dangerZones) {
+                                               List<PassingDangerZoneDTO> dangerZones,
+                                               boolean avoidApplied) {
         RouteRecommendResponseDTO response = new RouteRecommendResponseDTO();
 
         // recommendedRouteId와 createdAt은 영속 단계에서 채운다
@@ -298,8 +380,9 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         response.setTotalDescentM((int) Math.round(route.getDescentM()));
         response.setIntensityLevel(intensityLevel);
         response.setRouteGeoJson(route.getGeometryGeoJson());
-        // 회피 경로는 아직 만들지 않았다. 지나가는 곳을 알려주기만 하고 피해 가지는 않는다
-        response.setAvoidDangerZonesApplied(false);
+        // 회피를 요청했어도 경로를 못 찾으면 꺼진 채로 나간다. 프론트는 이 값으로
+        // "회피된 코스"인지 "지나가지만 알려주는 코스"인지 가른다
+        response.setAvoidDangerZonesApplied(avoidApplied);
 
         response.setWaypoints(toWaypointDtos(waypoints, design, route.distanceKm()));
         response.setPassingDangerZones(dangerZones);
