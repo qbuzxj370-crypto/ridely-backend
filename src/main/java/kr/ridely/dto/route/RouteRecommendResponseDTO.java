@@ -99,7 +99,8 @@ public class RouteRecommendResponseDTO {
 
     /**
      * 이 코스가 통과하는 사고다발지역 목록.
-     * 회피 설정을 켰다면 비어 있다.
+     *
+     * 회피를 적용해도 비지 않는다. 회피 대상에서 뺀 등급은 그대로 지나가고 그 구역을 여기에 담는다. 빈 배열은 "지나는 구역이 없다"는 뜻이지 "안전하다"는 뜻이 아니다.
      */
     private List<PassingDangerZoneDTO> passingDangerZones;
 
