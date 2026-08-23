@@ -2,6 +2,8 @@ package kr.ridely.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
+
 /**
  * 코스 추천 설정 바인딩. application.yml의 ridely.route.* 값을 주입받는다.
  *
@@ -15,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param cacheTtlHours            추천 결과 캐시 수명. 캐시 도입 시 사용한다
  * @param maxTargetDistanceKm      목표 거리 상한. ROUTE-002 판정에 쓴다
  * @param dangerZoneAlertDistanceM 라이딩 모드 근접 알림 거리. 라이딩 모드 도입 시 사용한다
+ * @param avoidDangerLevels        회피 대상 위험 등급. 회피를 켠 사용자에게만 적용된다
  */
 @ConfigurationProperties(prefix = "ridely.route")
 public record RouteProperties(
@@ -25,7 +28,8 @@ public record RouteProperties(
         int candidateMaxCount,
         int cacheTtlHours,
         double maxTargetDistanceKm,
-        int dangerZoneAlertDistanceM
+        int dangerZoneAlertDistanceM,
+        List<String> avoidDangerLevels
 ) {
 
     /**

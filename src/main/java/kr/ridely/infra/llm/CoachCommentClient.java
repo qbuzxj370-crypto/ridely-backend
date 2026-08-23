@@ -67,15 +67,19 @@ public class CoachCommentClient {
      * @param durationMin      예상 소요 시간(분)
      * @param intensityLevel   산출된 운동 강도
      * @param dangerZones      코스가 지나는 사고다발지역. 비어 있으면 경고문을 만들지 않는다
+     * @param avoidApplied     회피 정책을 적용해 그린 코스인지. 적용했어도 피하지 않는 등급은 dangerZones에 남는다
      */
     public CoachCommentDTO generate(CourseDesignDTO design, RouteCandidatesDTO candidates,
                                     double targetDistanceKm, boolean circular,
                                     double totalDistanceKm,
                                     int durationMin, String intensityLevel,
-                                    List<PassingDangerZoneDTO> dangerZones) {
+                                    List<PassingDangerZoneDTO> dangerZones, boolean avoidApplied) {
 
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("dangerZones", toDangerRows(dangerZones));
+        // 결과가 아니라 정책으로 넘긴다. 실제로 피한 구역이 있었는지는 알 수 없고
+        // (비교 호출이 한 번 더 필요하다), 어느 지점을 피했는지는 라이더가 알 필요도 없다
+        variables.put("avoidApplied", avoidApplied);
         variables.put("routeShape", circular ? "출발지로 되돌아오는 순환 코스" : "출발지에서 도착지까지 가는 편도 코스");
         variables.put("totalDistanceKm", String.valueOf(totalDistanceKm));
         variables.put("durationMin", String.valueOf(durationMin));

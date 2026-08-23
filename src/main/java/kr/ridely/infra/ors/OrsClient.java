@@ -1,5 +1,7 @@
 package kr.ridely.infra.ors;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -33,7 +35,7 @@ import java.util.Map;
  *   - 좌표는 [경도, 위도] 순이다. 뒤집으면 조용히 엉뚱한 경로가 나온다
  *   - 경유지를 포함해 순서대로 넘긴다 (출발 → 경유 → 도착). ORS가 그 순서를 지킨다. 최적 순서 재배열은 하지 않는다 — 경유지 순서는 LLM이 정한 설계 의도다
  *   - 무료 한도가 있다(directions 기준 분당·일일 제한). 같은 요청을 반복하지 말 것. 개발 중에는 응답 JSON을 로컬에 저장해 재사용한다
- *   - avoid_polygons(사고다발지 회피)는 아직 쓰지 않는다. 여기서는 보내지 않는다
+ *   - avoid_polygons를 넘기면 그 영역을 지나지 않는 경로를 그린다. 넘기는 도형이 길을 완전히 막으면 경로를 못 찾아 실패하므로, 호출부가 회피 없는 재시도를 준비해야 한다
  */
 @Component
 public class OrsClient {
@@ -64,9 +66,18 @@ public class OrsClient {
      * @return 형상·거리·시간·고도를 추린 결과
      */
     public OrsRouteResult route(List<double[]> coordinates) {
-        verifyRequest(coordinates);
+        return route(coordinates, null);
+    }
 
-        String body = fetchRaw(coordinates);
+    /**
+     * 특정 영역을 지나지 않는 자전거 경로를 그린다.
+     *
+     * ⚠️ 넘긴 도형이 길을 완전히 막으면 경로를 못 찾아 실패한다. 사고다발지는 교차로에 생기고 그 교차로가 유일한 통로일 수 있다. <b>호출부는 회피 없는 재시도를 준비해야 한다.</b>
+     *
+     * @param avoidPolygonsGeoJson 회피할 영역. GeoJSON Polygon 또는 MultiPolygon 문자열. null이면 회피하지 않는다
+     */
+    public OrsRouteResult route(List<double[]> coordinates, String avoidPolygonsGeoJson) {
+        String body = fetchRaw(coordinates, avoidPolygonsGeoJson);
         OrsDirectionsResponse parsed = parse(body);
         return toResult(parsed);
     }
@@ -77,6 +88,10 @@ public class OrsClient {
      * 파싱에서 무엇이 빠지는지 눈으로 확인할 때 쓴다. 정식 경로는 {@link #route}다.
      */
     public String fetchRaw(List<double[]> coordinates) {
+        return fetchRaw(coordinates, null);
+    }
+
+    private String fetchRaw(List<double[]> coordinates, String avoidPolygonsGeoJson) {
         verifyRequest(coordinates);
 
         // 순서를 유지해야 요청 본문이 예측 가능해진다. 로그 대조와 재현에 필요하다
@@ -86,6 +101,9 @@ public class OrsClient {
         payload.put("elevation", true);
         // 턴바이턴 안내는 쓰지 않는다. 응답 크기를 크게 줄인다
         payload.put("instructions", false);
+        if (avoidPolygonsGeoJson != null) {
+            payload.put("options", Map.of("avoid_polygons", toGeometry(avoidPolygonsGeoJson)));
+        }
 
         String path = PATH_TEMPLATE.formatted(properties.profile());
 
@@ -102,6 +120,23 @@ public class OrsClient {
 
         verifyNotEmpty(body);
         return body;
+    }
+
+    /**
+     * GeoJSON 문자열을 요청 본문에 실을 수 있는 형태로 바꾼다.
+     *
+     * 문자열을 그대로 넣으면 JSON 안에 따옴표로 감싼 문자열이 되어 라우팅 엔진이 형식 오류로 거부한다. 객체로 풀어야 중첩 JSON이 된다.
+     *
+     * ⚠️ PostGIS가 돌려주는 도형은 MultiPolygon이다(accident_zone.polygon_geom을 그 타입으로 통일했다). 좌표 배열을 한 번 더 감싸면 중첩이 깊어져 같은 형식 오류가 난다 — 여기서 파싱만 하고 구조는 손대지 않는 이유다.
+     */
+    private Map<String, Object> toGeometry(String geoJson) {
+        try {
+            return objectMapper.readValue(geoJson, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException e) {
+            log.error("회피 도형 GeoJSON을 읽지 못했다: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.COMMON_500);
+        }
     }
 
     private void verifyRequest(List<double[]> coordinates) {

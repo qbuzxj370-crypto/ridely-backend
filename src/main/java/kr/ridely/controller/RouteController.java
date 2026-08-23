@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,6 +39,14 @@ public class RouteController {
 
                     경유지는 AI가 고르고 실제 경로는 라우팅 엔진이 그린다. AI가 좌표를 만들지 않으므로 강 위를 지나는 경로는 나오지 않는다.
 
+                    사고다발지역을 지나면 응답의 passingDangerZones에 담기고 코치 코멘트가 짚어 준다.
+
+                    회피를 켜면 위험도가 높은 구역을 지나지 않는 경로를 그린다. 회원은 설정값을, 비회원은 X-Ridely-Avoid-Danger-Zones 헤더를 따른다.
+
+                    ⚠️ **avoidDangerZonesApplied가 true여도 passingDangerZones는 비지 않는다.** 회피는 등급을 가려서 하고 대상에서 뺀 등급은 그대로 지나간다. 주의 등급까지 전부 피하면 우회가 커져 목표 거리를 크게 넘기기 때문이다. 화면에 "안전 경로"라고 단정하지 말고 지나는 구역을 함께 보여 줘야 한다.
+
+                    회피가 켜져 있어도 피해 가는 경로를 찾지 못하면 회피 없이 그리고 avoidDangerZonesApplied를 false로 둔다.
+
                     - 우선순위 합이 1이 아님: ROUTE-001
                     - 목표 거리가 직선거리보다 짧음: ROUTE-002
                     - 서비스 지역(한강 서울 구간) 밖: ROUTE-003
@@ -45,8 +54,10 @@ public class RouteController {
     @PostMapping("/recommend")
     public ApiResponse<RouteRecommendResponseDTO> recommend(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+            @Parameter(description = "비회원 사고다발지 회피 요청. 회원은 저장된 설정을 따르므로 무시된다")
+            @RequestHeader(value = "X-Ridely-Avoid-Danger-Zones", required = false) Boolean avoidHeader,
             @Valid @RequestBody RouteRecommendRequestDTO request) {
-        return ApiResponse.ok(routeRecommendService.recommend(request, userId));
+        return ApiResponse.ok(routeRecommendService.recommend(request, userId, avoidHeader));
     }
 
     @Operation(summary = "추천 코스 다시 보기",
