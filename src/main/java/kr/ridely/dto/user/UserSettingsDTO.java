@@ -83,7 +83,7 @@ public class UserSettingsDTO {
      * 거리 표시 단위.
      * "km" 또는 "mile"
      *
-     * ※ 서버는 저장만 하고 응답은 항상 km다. 표시 변환은 화면에서 한다 —
+     * ※ 서버는 저장만 하고 응답은 항상 km다. 표시 변환은 화면에서 한다 -
      *   저장값과 응답값이 단위에 따라 달라지면 같은 코스가 사용자마다 다른 숫자로 기록된다.
      */
     @Pattern(regexp = "km|mile", message = "단위는 km 또는 mile만 가능합니다")

@@ -236,7 +236,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
             return null;
         }
         // 무엇을 피할지가 곧 거리를 조절하는 손잡이다. 전 등급을 피하면 우회가 커져
-        // 목표 거리를 크게 넘긴다 — 근거는 application.yml의 avoid-danger-levels 주석
+        // 목표 거리를 크게 넘긴다 - 근거는 application.yml의 avoid-danger-levels 주석
         return accidentZoneSpatialDao.findAvoidGeometry(routeProperties.avoidDangerLevels())
                 .orElse(null);
     }
@@ -261,7 +261,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                         targetDistanceKm, startLng, startLat, endLng, endLat);
                 return new Routed(route, true);
             } catch (BusinessException e) {
-                log.warn("회피 경로를 찾지 못했다. 회피 없이 다시 그린다 — 사고다발지가 유일한 통로일 수 있다");
+                log.warn("회피 경로를 찾지 못했다. 회피 없이 다시 그린다 - 사고다발지가 유일한 통로일 수 있다");
             }
         }
 
@@ -275,7 +275,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     /**
      * 목표 거리에 못 미치면 경로를 한 번 늘려 다시 잰다.
      *
-     * 경유지 선정으로는 거리를 못 맞춘다. 실측 세 번에서 목표의 51~62%에 그쳤고, 후보를 24건에서 86건으로 늘려도 마찬가지였다. 자연스러운 코스를 만드는 것과 목표 거리를 채우는 것이 다른 목표라서, 후보를 아무리 좋게 줘도 LLM은 경로에 붙은 지점을 고른다. 그 판단 자체는 옳다 — 한강 라이딩에 4km 떨어진 대여소를 넣는 코스가 더 나은 코스는 아니다.
+     * 경유지 선정으로는 거리를 못 맞춘다. 실측 세 번에서 목표의 51~62%에 그쳤고, 후보를 24건에서 86건으로 늘려도 마찬가지였다. 자연스러운 코스를 만드는 것과 목표 거리를 채우는 것이 다른 목표라서, 후보를 아무리 좋게 줘도 LLM은 경로에 붙은 지점을 고른다. 그 판단 자체는 옳다 - 한강 라이딩에 4km 떨어진 대여소를 넣는 코스가 더 나은 코스는 아니다.
      *
      * 그래서 거리는 설계가 아니라 여기서 맞춘다. 부족분의 절반만큼 도착지 반대편으로 나갔다 오는 지점을 경로 맨 앞에 끼운다. 자전거도로 위의 점이라 코스가 도로를 벗어나지 않는다.
      *
