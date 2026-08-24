@@ -14,4 +14,57 @@
         WHERE user_id = #{userId}
     </select>
 
+    <!--
+        설정 전체 조회 (컬럼명 → 필드명 변환은 map-underscore-to-camel-case 설정이 처리).
+        user_id가 UNIQUE라 단건이다.
+    -->
+    <select id="selectById" resultType="kr.ridely.dto.user.UserSettingsDTO">
+        SELECT avoid_danger_zones,
+               default_priority_convenience,
+               default_priority_exercise,
+               default_priority_scenery,
+               units,
+               notification_enabled,
+               vibration_enabled
+          FROM user_settings
+         WHERE user_id = #{userId}
+    </select>
+
+    <!--
+        설정 부분 수정 (PATCH). UserMapper.updateProfile과 같은 방식이다.
+
+        &lt;set&gt;이 조건에 맞는 항목만 골라 SET 절을 만들고 마지막 쉼표를 떼어 준다.
+        null 검사를 하는 이유는 PATCH가 "보낸 항목만 수정"이기 때문이다.
+        요청에 없던 필드(null)를 그대로 UPDATE하면 기존 값이 지워진다.
+
+        우선순위 셋은 묶음이라 서비스가 "하나라도 오면 셋 다" 를 강제한다.
+        여기서는 온 것만 반영하므로 그 검증이 없으면 합이 1을 벗어난 채로 저장된다.
+    -->
+    <update id="updateSettings">
+        UPDATE user_settings
+        <set>
+            <if test="request.avoidDangerZones != null">
+                avoid_danger_zones = #{request.avoidDangerZones},
+            </if>
+            <if test="request.defaultPriorityConvenience != null">
+                default_priority_convenience = #{request.defaultPriorityConvenience},
+            </if>
+            <if test="request.defaultPriorityExercise != null">
+                default_priority_exercise = #{request.defaultPriorityExercise},
+            </if>
+            <if test="request.defaultPriorityScenery != null">
+                default_priority_scenery = #{request.defaultPriorityScenery},
+            </if>
+            <if test="request.units != null">units = #{request.units},</if>
+            <if test="request.notificationEnabled != null">
+                notification_enabled = #{request.notificationEnabled},
+            </if>
+            <if test="request.vibrationEnabled != null">
+                vibration_enabled = #{request.vibrationEnabled},
+            </if>
+            updated_at = NOW()
+        </set>
+        WHERE user_id = #{userId}
+    </update>
+
 </mapper>
