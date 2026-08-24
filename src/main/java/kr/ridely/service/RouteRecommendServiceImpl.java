@@ -8,7 +8,6 @@ import kr.ridely.config.RouteProperties;
 import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.NationalBikeRouteDao;
 import kr.ridely.dao.RouteDao;
-import kr.ridely.dao.UserSettingsDao;
 import kr.ridely.dto.route.CandidateDTO;
 import kr.ridely.dto.route.CoachCommentDTO;
 import kr.ridely.dto.route.CourseDesignDTO;
@@ -84,7 +83,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final RouteDao routeDao;
     private final NationalBikeRouteDao nationalBikeRouteDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
-    private final UserSettingsDao userSettingsDao;
+    private final UserSettingsService userSettingsService;
     private final RouteProperties routeProperties;
     private final LlmProperties llmProperties;
 
@@ -98,13 +97,13 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                                      RouteDao routeDao,
                                      NationalBikeRouteDao nationalBikeRouteDao,
                                      AccidentZoneSpatialDao accidentZoneSpatialDao,
-                                     UserSettingsDao userSettingsDao,
+                                     UserSettingsService userSettingsService,
                                      RouteProperties routeProperties,
                                      LlmProperties llmProperties) {
         this.routeProperties = routeProperties;
         this.nationalBikeRouteDao = nationalBikeRouteDao;
         this.accidentZoneSpatialDao = accidentZoneSpatialDao;
-        this.userSettingsDao = userSettingsDao;
+        this.userSettingsService = userSettingsService;
         this.candidateCollector = candidateCollector;
         this.courseDesignClient = courseDesignClient;
         this.coachCommentClient = coachCommentClient;
@@ -226,30 +225,14 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     }
 
     /**
-     * 회피를 요청했는지 판정한다.
-     *
-     * 회원은 저장된 설정을, 비회원은 요청 헤더를 본다. 회원이 헤더를 함께 보내도 설정이 이긴다 — 설정 화면에서 끈 것을 헤더로 되살릴 수 있으면 설정의 의미가 없다.
-     */
-    private boolean isAvoidRequested(Long userId, Boolean avoidHeader) {
-        if (userId == null) {
-            return Boolean.TRUE.equals(avoidHeader);
-        }
-        Boolean saved = userSettingsDao.selectAvoidDangerZones(userId);
-        if (saved == null) {
-            // 가입 트랜잭션이 기본값 행을 만들므로 정상 회원에게는 없을 수 없다.
-            // 없다면 데이터가 어긋난 것이라 조용히 넘기지 않는다
-            log.warn("회원 설정 행이 없다: userId={}. 회피를 끈 것으로 본다", userId);
-        }
-        return Boolean.TRUE.equals(saved);
-    }
-
-    /**
      * 회피할 도형을 가져온다.
+     *
+     * 회피를 요청했는지 판정하는 것은 설정 도메인의 일이라 UserSettingsService에 있다. 여기서는 그 답에 따라 도형을 가져올지만 정한다.
      *
      * @return 회피할 도형. 회피를 끈 경우나 대상 구역이 없으면 null
      */
     private String resolveAvoidGeometry(Long userId, Boolean avoidHeader) {
-        if (!isAvoidRequested(userId, avoidHeader)) {
+        if (!userSettingsService.isAvoidRequested(userId, avoidHeader)) {
             return null;
         }
         // 무엇을 피할지가 곧 거리를 조절하는 손잡이다. 전 등급을 피하면 우회가 커져
