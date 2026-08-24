@@ -16,15 +16,6 @@ import org.apache.ibatis.annotations.Param;
 public interface UserSettingsDao {
 
     /**
-     * 사고다발지 회피 설정을 읽는다.
-     *
-     * 반환 타입이 Boolean인 이유는 "설정이 꺼져 있다"와 "설정 행이 없다"를 구분해야 해서다. 가입 트랜잭션이 기본값 행을 만들므로 정상 회원에게는 항상 값이 있지만, 그 트랜잭션 이전에 만들어진 계정이나 데이터 손상으로 행이 없을 수 있다. null을 false로 뭉개면 그 상황이 드러나지 않는다.
-     *
-     * @return 설정값. 설정 행이 없으면 null
-     */
-    Boolean selectAvoidDangerZones(@Param("userId") long userId);
-
-    /**
      * 설정 전체를 읽는다.
      *
      * user_id가 UNIQUE라 단건이다. 전 컬럼을 읽지만 PK 단건 조회라 컬럼 하나만 읽는 것과 비용 차이가 없다 — 회피 값 하나가 필요한 곳에서도 이 메서드를 쓴다.

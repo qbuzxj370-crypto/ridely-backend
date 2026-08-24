@@ -4,17 +4,6 @@
 <mapper namespace="kr.ridely.dao.UserSettingsDao">
 
     <!--
-        사고다발지 회피 설정 조회.
-        컬럼이 NOT NULL DEFAULT FALSE라 행이 있으면 값도 반드시 있다.
-        행 자체가 없을 때만 null이 나오고, 그 구분을 위해 반환 타입이 Boolean이다.
-    -->
-    <select id="selectAvoidDangerZones" resultType="java.lang.Boolean">
-        SELECT avoid_danger_zones
-        FROM user_settings
-        WHERE user_id = #{userId}
-    </select>
-
-    <!--
         설정 전체 조회 (컬럼명 → 필드명 변환은 map-underscore-to-camel-case 설정이 처리).
         user_id가 UNIQUE라 단건이다.
     -->
