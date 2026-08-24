@@ -6,8 +6,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.ridely.common.ApiResponse;
 import kr.ridely.dto.user.UserResponseDTO;
+import kr.ridely.dto.user.UserSettingsDTO;
 import kr.ridely.dto.user.UserUpdateRequestDTO;
 import kr.ridely.service.UserService;
+import kr.ridely.service.UserSettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final UserSettingsService userSettingsService;
 
     @Operation(summary = "내 정보 조회",
             description = """
@@ -60,5 +63,42 @@ public class UserController {
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserUpdateRequestDTO request) {
         return ApiResponse.ok(userService.updateProfile(userId, request));
+    }
+
+    @Operation(summary = "내 설정 조회",
+            description = """
+                    회피 여부, 코스 추천 기본 가중치, 표시 단위, 알림·진동 설정을 반환한다.
+
+                    설정 행은 가입할 때 기본값으로 만들어진다. 없다면 데이터가 어긋난 것이므로 COMMON-004다.
+                    """)
+    @GetMapping("/me/settings")
+    public ApiResponse<UserSettingsDTO> mySettings(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(userSettingsService.findByUserId(userId));
+    }
+
+    @Operation(summary = "내 설정 수정",
+            description = """
+                    보낸 항목만 변경된다. 예를 들어 `{"avoidDangerZones": true}`만 보내면 나머지 설정은 그대로다.
+                    응답은 갱신된 전체 설정이라 다른 항목을 다시 조회하지 않아도 된다.
+
+                    **가중치 셋은 묶음이다.** 하나만 바꾸면 나머지는 기존 값이 남아 합이 1을 벗어난다.
+                    셋 중 하나라도 보내면 셋 다 보내야 하고 합이 1이어야 한다. 아니면 ROUTE-001이다.
+
+                    `avoidDangerZones`를 켜면 이후 코스 추천이 사고다발지를 피해 그린다.
+                    ⚠️ **모든 사고다발지를 피하는 것은 아니다.** 대상은 위험·경고 등급이고 주의 등급은 그대로 지나간다.
+                    주의 등급까지 피하면 우회가 커져 목표 거리를 크게 넘긴다. 대상 등급은 서버 설정이라 사용자가 고를 수 없다.
+                    화면에 "안전 경로"라고 단정하지 말고 추천 응답의 passingDangerZones를 함께 보여 줘야 한다.
+
+                    `units`는 저장만 하고 응답 거리는 항상 km다. 표시 변환은 화면에서 한다.
+
+                    - 형식 오류(가중치 범위·단위 값): COMMON-001
+                    - 가중치가 묶음이 아니거나 합이 1이 아님: ROUTE-001
+                    """)
+    @PatchMapping("/me/settings")
+    public ApiResponse<UserSettingsDTO> updateMySettings(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody UserSettingsDTO request) {
+        return ApiResponse.ok(userSettingsService.update(userId, request));
     }
 }
