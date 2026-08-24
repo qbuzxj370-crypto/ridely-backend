@@ -34,7 +34,17 @@ public class UserSettingsDTO {
     /**
      * 사고다발지역 회피 여부.
      * true면 코스를 짤 때 사고 잦은 구역을 우회한다 (ORS avoid_polygons 적용).
-     * false면 회피하지 않고 지도에 표시 + 근접 알림만 준다.
+     *
+     * ※ true여도 모든 사고다발지를 피하는 것은 아니다.
+     *   회피 대상은 위험·경고 등급이고 주의 등급은 그대로 지나간다.
+     *   주의 등급까지 피하면 우회가 커져 목표 거리를 크게 넘긴다.
+     *   대상 등급은 서버 설정(ridely.route.avoid-danger-levels)이라 사용자가 고를 수 없다.
+     *
+     * ※ 비회원은 이 설정을 가질 수 없어 요청 헤더(X-Ridely-Avoid-Danger-Zones)로 1회성 전달한다.
+     *   회원이 그 헤더를 함께 보내도 이 값이 이긴다.
+     *
+     * false여도 지나는 구역은 응답(passingDangerZones)과 코치 코멘트로 알려 준다.
+     * 라이딩 중 근접 알림은 아직 없다.
      */
     private Boolean avoidDangerZones;
 
@@ -61,6 +71,9 @@ public class UserSettingsDTO {
      * ※ 세 가중치의 합이 1.00이어야 한다.
      *   각 값이 0~1인지는 여기서 검사하지만,
      *   "합계 = 1.00" 검사는 세 값을 모두 봐야 하므로 서비스 레이어에서 처리한다.
+     *
+     * ※ PATCH에서 셋은 묶음이다. 하나만 바꾸면 나머지는 기존 값이 남아 합이 1을 벗어나므로,
+     *   셋 중 하나라도 보내면 셋 다 보내야 한다. 이 검사도 서비스 레이어에서 한다.
      */
     @DecimalMin(value = "0.00", message = "가중치는 0 이상이어야 합니다")
     @DecimalMax(value = "1.00", message = "가중치는 1 이하여야 합니다")
@@ -69,6 +82,9 @@ public class UserSettingsDTO {
     /**
      * 거리 표시 단위.
      * "km" 또는 "mile"
+     *
+     * ※ 서버는 저장만 하고 응답은 항상 km다. 표시 변환은 화면에서 한다 —
+     *   저장값과 응답값이 단위에 따라 달라지면 같은 코스가 사용자마다 다른 숫자로 기록된다.
      */
     @Pattern(regexp = "km|mile", message = "단위는 km 또는 mile만 가능합니다")
     private String units;
