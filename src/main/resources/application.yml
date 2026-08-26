@@ -199,7 +199,13 @@ ridely:
           - { name: "뚝섬한강공원",   lng: 127.0700, lat: 37.5290 }
           - { name: "잠실한강공원",   lng: 127.0820, lat: 37.5180 }
     ors:
-      base-url: https://api.openrouteservice.org
+      # 2026-08-24에 api.openrouteservice.org가 셧오프됐다. HeiGIT이 모든 API를
+      # api.heigit.org/<서비스명>/<버전> 구조로 통합하면서 구 도메인을 닫았다.
+      # 4월 28일 공지 → 8월 24일 차단이고, 그 뒤 호출은 403에 다음 본문이 온다.
+      #   {"error": "Access to this API has been disallowed"}
+      # 게이트웨이(Tyk)가 내는 문구라 키 문제로 오인하기 쉽다. 키는 그대로 쓴다.
+      # 경로 규칙은 그대로여서 base-url만 바꾸면 된다.
+      base-url: https://api.heigit.org/openrouteservice
       api-key: ${ORS_API_KEY:}
       profile: cycling-regular
       timeout-seconds: 10
