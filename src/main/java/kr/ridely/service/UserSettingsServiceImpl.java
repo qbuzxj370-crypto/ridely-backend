@@ -21,8 +21,8 @@ public class UserSettingsServiceImpl implements UserSettingsService {
 
     private static final Logger log = LoggerFactory.getLogger(UserSettingsServiceImpl.class);
 
-    /** 우선순위 세 값의 합 */
-    private static final BigDecimal PRIORITY_SUM = new BigDecimal("1.00");
+    /** 우선순위 세 값의 합. 추천 요청 검증(RouteRecommendServiceImpl)과 같은 규칙이다 */
+    private static final BigDecimal PRIORITY_SUM = BigDecimal.ONE;
 
     private final UserSettingsDao userSettingsDao;
 
@@ -69,6 +69,8 @@ public class UserSettingsServiceImpl implements UserSettingsService {
      * 셋 다 없으면 우선순위를 건드리지 않는 요청이라 통과시킨다. 하나라도 있으면 셋 다 있어야 하고 합이 1이어야 한다.
      *
      * 부분 수정을 허용하지 않는 이유는 합계를 지킬 방법이 없어서다. convenience만 0.6으로 바꾸면 나머지는 기존 값(0.30·0.20)이 남아 합이 1.10이 된다. 나머지를 서버가 비례 조정하는 방법도 있지만, 사용자가 만지지 않은 값을 서버가 바꾸면 화면의 슬라이더와 저장값이 어긋난다.
+     *
+     * 오차를 허용하지 않는다. 추천 요청 검증과 같은 규칙이라야 같은 값이 한쪽만 통과하는 일이 없다. 슬라이더 셋을 다루는 화면은 마지막 값을 1 - a - b로 계산해 보내면 된다.
      *
      * DB CHECK 제약은 각 값이 0~1인지만 보고 합은 보지 않는다.
      */

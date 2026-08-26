@@ -40,13 +40,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private static final BigDecimal DEFAULT_EXERCISE = new BigDecimal("0.30");
     private static final BigDecimal DEFAULT_SCENERY = new BigDecimal("0.20");
 
-    /**
-     * 우선순위 합 허용 오차.
-     *
-     * 클라이언트가 0.33 + 0.33 + 0.34처럼 반올림한 값을 보내는 것을 막지 않으려는 여유다. 0.01이면 사람이 손으로 채운 값은 통과하고 명백히 잘못된 조합은 걸린다.
-     */
+    /** 우선순위 세 값의 합 */
     private static final BigDecimal PRIORITY_SUM = BigDecimal.ONE;
-    private static final BigDecimal PRIORITY_TOLERANCE = new BigDecimal("0.01");
 
     /**
      * 목표 거리는 최소한 직선거리보다 길어야 한다.
@@ -419,10 +414,14 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
      * 우선순위 합이 1인지 본다.
      *
      * 합이 1이 아니면 가중치의 의미가 없어진다. 셋 다 1.0으로 보내면 "전부 최우선"이 되어 LLM이 판단 기준을 잃는다.
+     *
+     * 오차를 허용하지 않는다. BigDecimal은 십진 산술이라 0.33 + 0.33 + 0.34가 정확히 1.00이 되고, 부동소수점 오차를 막을 이유가 없다. 슬라이더 셋을 다루는 화면은 마지막 값을 1 - a - b로 계산해 보내면 된다.
+     *
+     * compareTo로 비교한다. equals는 소수 자릿수까지 보므로 0.5와 0.50을 다르게 판정한다.
      */
     private void verifyPrioritySum(BigDecimal convenience, BigDecimal exercise, BigDecimal scenery) {
         BigDecimal sum = convenience.add(exercise).add(scenery);
-        if (sum.subtract(PRIORITY_SUM).abs().compareTo(PRIORITY_TOLERANCE) > 0) {
+        if (sum.compareTo(PRIORITY_SUM) != 0) {
             log.warn("우선순위 합이 1이 아니다: {} (편의 {} / 운동 {} / 풍경 {})",
                     sum, convenience, exercise, scenery);
             throw new BusinessException(ErrorCode.ROUTE_001);
