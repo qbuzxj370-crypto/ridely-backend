@@ -7,9 +7,11 @@ import org.springframework.stereotype.Component;
  *
  * 기획서의 강도 표를 그대로 옮긴 것이다. 거리 구간별로 LIGHT·MODERATE·HARD·CHALLENGE를 매긴다.
  *
- * 표에는 누적 고도 기준도 함께 있지만(50 / 150 / 300m) 지금은 쓰지 않는다. ORS의 상승 고도가 평지에서 크게 부풀려져, 한강 코스가 HARD로 잘못 올라간다. 실측에서 12km 한강 구간에 상승 137.9m가 나왔는데 표대로면 MODERATE 상한(150m)에 육박하는 값이다 — docs/shared/SCHEMA_CHANGE_POI.md 6.5.
+ * 표에는 누적 고도 기준도 함께 있지만(50 / 150 / 300m) 지금은 쓰지 않는다. ORS의 상승 고도가 평지에서 크게 부풀려져, 한강 코스가 HARD로 잘못 올라간다. 실측에서 12km 한강 구간에 상승 167m가 나왔는데 표대로면 MODERATE 상한(150m)을 이미 넘긴 값이다 - docs/shared/SCHEMA_CHANGE_POI.md 6.5.
  *
- * 고도를 판정에 다시 넣으려면 AscentEstimator를 경사 상한 방식으로 바꾸고, 여러 구간을 실측해 상한값(6%인지 8%인지)을 정한 뒤, 이 클래스에 고도 항을 추가한다. 그 전까지는 거리만으로 판정하는 편이 덜 틀린다.
+ * <b>고도를 되돌릴 방법을 여섯 구간 실측으로 찾아봤으나 전부 막혔다.</b> 경사 상한은 실제 오르막을 파괴하고(표고차 236m가 12.9m로), 리샘플링은 간격을 정할 근거가 없고, 국토지리정보원 5m DEM은 공개제한이라 받을 수 없다. 정답을 모르는 것이 근본 원인이다 - docs/shared/SPIKE_ELEVATION.md.
+ *
+ * 그래서 거리만으로 판정한다. 이건 임시 조치가 아니라 실측이 뒷받침한 결론이다. 짧지만 가파른 코스를 LIGHT로 부르는 한계가 있지만, 평지를 HARD로 부르는 것보다 덜 틀린다. MVP 서비스 지역이 한강 평지라 후자가 훨씬 자주 일어난다.
  */
 @Component
 public class IntensityCalculator {
