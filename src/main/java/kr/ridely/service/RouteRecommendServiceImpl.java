@@ -8,7 +8,6 @@ import kr.ridely.config.RouteProperties;
 import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.NationalBikeRouteDao;
 import kr.ridely.dao.RouteDao;
-import kr.ridely.dao.UserSettingsDao;
 import kr.ridely.dto.route.CandidateDTO;
 import kr.ridely.dto.route.CoachCommentDTO;
 import kr.ridely.dto.route.CourseDesignDTO;
@@ -41,13 +40,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private static final BigDecimal DEFAULT_EXERCISE = new BigDecimal("0.30");
     private static final BigDecimal DEFAULT_SCENERY = new BigDecimal("0.20");
 
-    /**
-     * 우선순위 합 허용 오차.
-     *
-     * 클라이언트가 0.33 + 0.33 + 0.34처럼 반올림한 값을 보내는 것을 막지 않으려는 여유다. 0.01이면 사람이 손으로 채운 값은 통과하고 명백히 잘못된 조합은 걸린다.
-     */
+    /** 우선순위 세 값의 합 */
     private static final BigDecimal PRIORITY_SUM = BigDecimal.ONE;
-    private static final BigDecimal PRIORITY_TOLERANCE = new BigDecimal("0.01");
 
     /**
      * 목표 거리는 최소한 직선거리보다 길어야 한다.
@@ -84,7 +78,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final RouteDao routeDao;
     private final NationalBikeRouteDao nationalBikeRouteDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
-    private final UserSettingsDao userSettingsDao;
+    private final UserSettingsService userSettingsService;
     private final RouteProperties routeProperties;
     private final LlmProperties llmProperties;
 
@@ -98,13 +92,13 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                                      RouteDao routeDao,
                                      NationalBikeRouteDao nationalBikeRouteDao,
                                      AccidentZoneSpatialDao accidentZoneSpatialDao,
-                                     UserSettingsDao userSettingsDao,
+                                     UserSettingsService userSettingsService,
                                      RouteProperties routeProperties,
                                      LlmProperties llmProperties) {
         this.routeProperties = routeProperties;
         this.nationalBikeRouteDao = nationalBikeRouteDao;
         this.accidentZoneSpatialDao = accidentZoneSpatialDao;
-        this.userSettingsDao = userSettingsDao;
+        this.userSettingsService = userSettingsService;
         this.candidateCollector = candidateCollector;
         this.courseDesignClient = courseDesignClient;
         this.coachCommentClient = coachCommentClient;
@@ -226,34 +220,18 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     }
 
     /**
-     * 회피를 요청했는지 판정한다.
-     *
-     * 회원은 저장된 설정을, 비회원은 요청 헤더를 본다. 회원이 헤더를 함께 보내도 설정이 이긴다 — 설정 화면에서 끈 것을 헤더로 되살릴 수 있으면 설정의 의미가 없다.
-     */
-    private boolean isAvoidRequested(Long userId, Boolean avoidHeader) {
-        if (userId == null) {
-            return Boolean.TRUE.equals(avoidHeader);
-        }
-        Boolean saved = userSettingsDao.selectAvoidDangerZones(userId);
-        if (saved == null) {
-            // 가입 트랜잭션이 기본값 행을 만들므로 정상 회원에게는 없을 수 없다.
-            // 없다면 데이터가 어긋난 것이라 조용히 넘기지 않는다
-            log.warn("회원 설정 행이 없다: userId={}. 회피를 끈 것으로 본다", userId);
-        }
-        return Boolean.TRUE.equals(saved);
-    }
-
-    /**
      * 회피할 도형을 가져온다.
+     *
+     * 회피를 요청했는지 판정하는 것은 설정 도메인의 일이라 UserSettingsService에 있다. 여기서는 그 답에 따라 도형을 가져올지만 정한다.
      *
      * @return 회피할 도형. 회피를 끈 경우나 대상 구역이 없으면 null
      */
     private String resolveAvoidGeometry(Long userId, Boolean avoidHeader) {
-        if (!isAvoidRequested(userId, avoidHeader)) {
+        if (!userSettingsService.isAvoidRequested(userId, avoidHeader)) {
             return null;
         }
         // 무엇을 피할지가 곧 거리를 조절하는 손잡이다. 전 등급을 피하면 우회가 커져
-        // 목표 거리를 크게 넘긴다 — 근거는 application.yml의 avoid-danger-levels 주석
+        // 목표 거리를 크게 넘긴다 - 근거는 application.yml의 avoid-danger-levels 주석
         return accidentZoneSpatialDao.findAvoidGeometry(routeProperties.avoidDangerLevels())
                 .orElse(null);
     }
@@ -278,7 +256,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                         targetDistanceKm, startLng, startLat, endLng, endLat);
                 return new Routed(route, true);
             } catch (BusinessException e) {
-                log.warn("회피 경로를 찾지 못했다. 회피 없이 다시 그린다 — 사고다발지가 유일한 통로일 수 있다");
+                log.warn("회피 경로를 찾지 못했다. 회피 없이 다시 그린다 - 사고다발지가 유일한 통로일 수 있다");
             }
         }
 
@@ -292,7 +270,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     /**
      * 목표 거리에 못 미치면 경로를 한 번 늘려 다시 잰다.
      *
-     * 경유지 선정으로는 거리를 못 맞춘다. 실측 세 번에서 목표의 51~62%에 그쳤고, 후보를 24건에서 86건으로 늘려도 마찬가지였다. 자연스러운 코스를 만드는 것과 목표 거리를 채우는 것이 다른 목표라서, 후보를 아무리 좋게 줘도 LLM은 경로에 붙은 지점을 고른다. 그 판단 자체는 옳다 — 한강 라이딩에 4km 떨어진 대여소를 넣는 코스가 더 나은 코스는 아니다.
+     * 경유지 선정으로는 거리를 못 맞춘다. 실측 세 번에서 목표의 51~62%에 그쳤고, 후보를 24건에서 86건으로 늘려도 마찬가지였다. 자연스러운 코스를 만드는 것과 목표 거리를 채우는 것이 다른 목표라서, 후보를 아무리 좋게 줘도 LLM은 경로에 붙은 지점을 고른다. 그 판단 자체는 옳다 - 한강 라이딩에 4km 떨어진 대여소를 넣는 코스가 더 나은 코스는 아니다.
      *
      * 그래서 거리는 설계가 아니라 여기서 맞춘다. 부족분의 절반만큼 도착지 반대편으로 나갔다 오는 지점을 경로 맨 앞에 끼운다. 자전거도로 위의 점이라 코스가 도로를 벗어나지 않는다.
      *
@@ -436,10 +414,14 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
      * 우선순위 합이 1인지 본다.
      *
      * 합이 1이 아니면 가중치의 의미가 없어진다. 셋 다 1.0으로 보내면 "전부 최우선"이 되어 LLM이 판단 기준을 잃는다.
+     *
+     * 오차를 허용하지 않는다. BigDecimal은 십진 산술이라 0.33 + 0.33 + 0.34가 정확히 1.00이 되고, 부동소수점 오차를 막을 이유가 없다. 슬라이더 셋을 다루는 화면은 마지막 값을 1 - a - b로 계산해 보내면 된다.
+     *
+     * compareTo로 비교한다. equals는 소수 자릿수까지 보므로 0.5와 0.50을 다르게 판정한다.
      */
     private void verifyPrioritySum(BigDecimal convenience, BigDecimal exercise, BigDecimal scenery) {
         BigDecimal sum = convenience.add(exercise).add(scenery);
-        if (sum.subtract(PRIORITY_SUM).abs().compareTo(PRIORITY_TOLERANCE) > 0) {
+        if (sum.compareTo(PRIORITY_SUM) != 0) {
             log.warn("우선순위 합이 1이 아니다: {} (편의 {} / 운동 {} / 풍경 {})",
                     sum, convenience, exercise, scenery);
             throw new BusinessException(ErrorCode.ROUTE_001);
