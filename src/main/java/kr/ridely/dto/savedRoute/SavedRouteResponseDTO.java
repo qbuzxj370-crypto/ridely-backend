@@ -57,8 +57,17 @@ public class SavedRouteResponseDTO {
     /** 사용자 메모 */
     private String memo;
 
-    /** 즐겨찾기 여부 */
-    private boolean isFavorite;
+    /**
+     * 즐겨찾기 여부.
+     *
+     * 래퍼 타입(Boolean)인 이유는 JSON 키 때문이다. 원시 boolean이면 Lombok이 접근자를
+     * isFavorite()·setFavorite()로 만들고, Jackson이 is 접두사를 떼어 favorite으로 내보낸다.
+     * 그러면 PATCH 요청은 isFavorite으로 받으면서 응답은 favorite으로 나가 키가 어긋난다.
+     * MyBatis도 is_favorite 컬럼을 setIsFavorite으로 찾으므로 원시 타입이면 매핑되지 않는다.
+     *
+     * 컬럼이 NOT NULL DEFAULT FALSE라 값이 null로 나올 일은 없다.
+     */
+    private Boolean isFavorite;
 
     /** 저장한 시각 */
     private OffsetDateTime createdAt;
