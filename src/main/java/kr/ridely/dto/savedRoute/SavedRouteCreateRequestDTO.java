@@ -22,7 +22,8 @@ import lombok.Setter;
  * {
  *   "recommendedRouteId": 42,
  *   "customName": "주말 한강 코스",
- *   "memo": "선유도공원 카페 들르기 좋음"
+ *   "memo": "선유도공원 카페 들르기 좋음",
+ *   "isFavorite": true
  * }
  */
 @Getter
@@ -44,4 +45,13 @@ public class SavedRouteCreateRequestDTO {
 
     /** 메모. 선택 사항 */
     private String memo;
+
+    /**
+     * 즐겨찾기로 표시할지 여부. 보내지 않으면 false다.
+     *
+     * 저장하면서 바로 켤 수 있게 둔 이유는 저장 다이얼로그(이름·메모 입력)에 체크박스를 붙이는 화면이 자연스러워서다. 이 필드가 없으면 화면이 POST 후 PATCH를 이어 불러야 하고, POST만 성공하면 "저장은 됐는데 즐겨찾기는 안 된" 부분 실패 상태가 사용자에게 드러난다. 행동 하나를 연산 둘로 쪼개지 않는다.
+     *
+     * 래퍼 타입인 이유는 "안 보냈다"와 "false로 보냈다"를 구분하기 위해서다. 둘 다 결과는 false지만 매퍼가 컬럼 기본값에 맡길지 명시할지 정할 때 필요하다.
+     */
+    private Boolean isFavorite;
 }

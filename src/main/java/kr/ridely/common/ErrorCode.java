@@ -18,6 +18,7 @@ public enum ErrorCode {
     // 공통
     COMMON_001("COMMON-001", HttpStatus.BAD_REQUEST,            "잘못된 요청입니다"),
     COMMON_002("COMMON-002", HttpStatus.UNAUTHORIZED,           "로그인이 필요합니다"),
+    COMMON_003("COMMON-003", HttpStatus.FORBIDDEN,              "접근 권한이 없습니다"),
     COMMON_004("COMMON-004", HttpStatus.NOT_FOUND,              "요청한 정보를 찾을 수 없습니다"),
     COMMON_500("COMMON-500", HttpStatus.INTERNAL_SERVER_ERROR,  "서버 오류가 발생했습니다"),
 
@@ -36,7 +37,13 @@ public enum ErrorCode {
     // 004(추천 실패)·005(회피 라우팅 실패)는 fallback 체계를 만들 때 함께 추가한다.
     ROUTE_001("ROUTE-001", HttpStatus.BAD_REQUEST, "우선순위 합이 1이 되어야 합니다"),
     ROUTE_002("ROUTE-002", HttpStatus.BAD_REQUEST, "목표 거리가 적절하지 않습니다"),
-    ROUTE_003("ROUTE-003", HttpStatus.BAD_REQUEST, "서비스 지역이 아닙니다");
+    ROUTE_003("ROUTE-003", HttpStatus.BAD_REQUEST, "서비스 지역이 아닙니다"),
+
+    // 저장 경로
+    // saved_route의 UNIQUE(user_id, recommended_route_id) 위반이다.
+    // COMMON-001로 묶지 않은 이유는 화면이 "입력이 잘못됐다"와 "이미 저장했다"를 구분해야 해서다.
+    // 앞은 입력을 고쳐야 하지만 뒤는 사용자가 원한 상태가 이미 이뤄진 것이라 안내 문구가 정반대다.
+    SAVED_001("SAVED-001", HttpStatus.CONFLICT, "이미 저장한 코스입니다");
 
     private final String code;
     private final HttpStatus httpStatus;
