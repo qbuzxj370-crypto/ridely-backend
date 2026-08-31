@@ -152,6 +152,7 @@ ridely.auth.refresh_token
 |---|---|---|---|
 | `COMMON-001` | 400 | 입력값 검증 실패 | 모든 요청 (details 참고) |
 | `COMMON-002` | 401 | 로그인 필요 | 토큰 없이 보호 API 호출 |
+| `COMMON-003` | 403 | 남의 리소스 접근 | 저장 경로 단건·수정·삭제 |
 | `COMMON-004` | 404 | 대상 없음 | 조회 실패 |
 | `COMMON-500` | 500 | 서버 오류 | 예기치 못한 실패 |
 | `AUTH-101` | 409 | 이미 가입된 아이디 | 회원가입 |
@@ -160,6 +161,10 @@ ridely.auth.refresh_token
 | `AUTH-202` | 401 | 사용할 수 없는 계정(탈퇴·정지) | 로그인 |
 | `AUTH-301` | 401 | 액세스 토큰 만료 | 인증 필요한 모든 API |
 | `AUTH-302` | 401 | 리프레시 토큰 무효 | 토큰 재발급 |
+| `ROUTE-001` | 400 | 우선순위 합이 1이 아님 | 코스 추천, 사용자 설정 |
+| `ROUTE-002` | 400 | 목표 거리가 적절하지 않음 | 코스 추천 |
+| `ROUTE-003` | 400 | 서비스 지역 밖 | 코스 추천 |
+| `SAVED-001` | 409 | 이미 저장한 코스 | 코스 저장 |
 | `POI-001` | 404 | 반경 내 결과 없음 | 주변 관광지 조회 |
 
 `AUTH-201`은 **아이디가 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.**
@@ -247,6 +252,50 @@ GET /api/v1/tours/nearby?lat=37.5434&lng=126.8997&radiusM=2000&contentTypeIds=12
 - `units`는 서버가 저장만 한다. **응답 거리는 항상 km**이므로 mile 표시는 화면에서 변환한다.
 - 사고다발지 회피 토글은 회원이면 이 API로, 비회원이면 `X-Ridely-Avoid-Danger-Zones` 헤더로 보낸다. **회원이 헤더를 함께 보내면 무시된다.**
 
+### 저장 경로 (토큰 필요)
+
+| Method | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/v1/saved-routes` | 추천 코스를 내 목록에 담기 |
+| GET | `/api/v1/saved-routes` | 내 저장 목록 (페이지) |
+| GET | `/api/v1/saved-routes/{savedRouteId}` | 단건 조회 |
+| PATCH | `/api/v1/saved-routes/{savedRouteId}` | 이름·메모·즐겨찾기 수정 |
+| DELETE | `/api/v1/saved-routes/{savedRouteId}` | 저장 취소 (204) |
+
+```
+GET /api/v1/saved-routes?page=0&size=20&favoriteOnly=true&sort=name
+```
+
+| 파라미터 | 기본값 | 설명 |
+|---|---|---|
+| `page` | 0 | 0부터 시작 |
+| `size` | 20 | 최대 100 |
+| `favoriteOnly` | | `true`면 즐겨찾기만 |
+| `sort` | `latest` | `latest`(저장 역순) 또는 `name` |
+
+목록·단건·저장·수정이 **모두 같은 형태**를 돌려준다. 목록은 이것이 `content[]`에 담기고 `page`·`size`·`totalElements`·`totalPages`가 함께 온다.
+
+```json
+{
+  "savedRouteId": 3,
+  "recommendedRouteId": 42,
+  "customName": "주말 한강 코스",
+  "memo": "선유도공원 카페 들르기 좋음",
+  "isFavorite": true,
+  "createdAt": "2026-08-28T14:20:00+09:00",
+  "aiTitle": "한강 따라 14km, 적당히 땀 빼는 코스",
+  "totalDistanceKm": 14.8,
+  "estimatedDurationMin": 58,
+  "intensityLevel": "MODERATE"
+}
+```
+
+- **경로 좌표가 없다.** 지도를 그릴 때는 `recommendedRouteId`로 `GET /routes/{id}`를 따로 부른다. 좌표를 넣으면 목록 한 페이지가 수천 개를 실어 나른다.
+- **`customName`은 null일 수 있다.** 이름을 안 붙인 경우이고, 그때는 `aiTitle`을 대신 보여 준다. `sort=name`도 같은 기준으로 정렬한다.
+- **저장할 때 `isFavorite`을 함께 보낼 수 있다.** 저장 다이얼로그에 체크박스를 뒀다면 `PATCH`를 이어 부르지 않아도 된다.
+- **메모를 지우려면 빈 문자열을 보낸다.** `PATCH`에서 `null`은 "안 보냈다"라는 뜻이라 지우기와 구분되지 않는다.
+- 같은 코스를 두 번 저장하면 `SAVED-001`(409)이다. 저장 버튼의 상태를 눌린 모양으로 바꿔 두면 대부분 막을 수 있다.
+
 ### 기타
 
 | Method | 경로 | 설명 |
@@ -259,7 +308,6 @@ GET /api/v1/tours/nearby?lat=37.5434&lng=126.8997&radiusM=2000&contentTypeIds=12
 
 화면 개발 순서를 잡을 때 참고한다. 준비되는 대로 이 문서와 Swagger에 반영된다.
 
-- 저장 경로 (`/saved-routes`)
 - 라이딩 세션 (`/riding-sessions`)
 - 인프라 POI (`/pois/nearby`) — 음수대·수리소·따릉이·사고다발지
 - 지오코딩 (`/geo/search`) — 주소·장소명 → 좌표
