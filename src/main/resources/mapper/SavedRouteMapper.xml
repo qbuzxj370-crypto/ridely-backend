@@ -29,8 +29,10 @@
         둘 다 미리 SELECT로 확인하지 않고 DB 제약에 맡긴다.
         확인과 INSERT 사이에 다른 요청이 끼어들면 확인이 무의미해지고, 결국 예외 처리는 어차피 필요하다.
 
-        is_favorite은 넣지 않는다. 저장하는 순간부터 즐겨찾기인 경우는 없고, 컬럼 기본값이 FALSE다.
-        켜려면 저장 후 PATCH를 부른다.
+        is_favorite을 안 보내면 COALESCE가 FALSE로 떨어뜨린다. 컬럼 기본값도 FALSE지만
+        DEFAULT에 맡기려면 컬럼 목록에서 빼야 해서 &lt;trim&gt; 분기가 필요해진다.
+        jdbcType을 명시하는 이유는 null일 때 MyBatis가 기본값 OTHER로 setNull을 부르는데
+        PostgreSQL이 boolean 자리에서 그 타입을 받지 못하기 때문이다.
 
         &lt;insert&gt;가 아니라 &lt;select&gt;인 이유는 생성된 번호를 반환값으로 받기 위해서다.
         MyBatis의 &lt;insert&gt;는 반환값이 항상 갱신 행 수라, useGeneratedKeys로 받은 키를
@@ -39,11 +41,12 @@
         PostgreSQL의 RETURNING이 이 문제를 그대로 푼다.
     -->
     <select id="insertReturningId" resultType="long">
-        INSERT INTO saved_route (user_id, recommended_route_id, custom_name, memo)
+        INSERT INTO saved_route (user_id, recommended_route_id, custom_name, memo, is_favorite)
         VALUES (#{userId},
                 #{request.recommendedRouteId},
                 #{request.customName},
-                #{request.memo})
+                #{request.memo},
+                COALESCE(#{request.isFavorite, jdbcType=BOOLEAN}, FALSE))
         RETURNING saved_route_id
     </select>
 
