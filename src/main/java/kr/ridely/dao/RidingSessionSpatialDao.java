@@ -16,6 +16,8 @@ import org.springframework.stereotype.Repository;
  *
  * 종료를 한 번의 UPDATE로 처리하는 이유는 트랙과 측정값이 같은 순간에 함께 오기 때문이다. 측정값만 MyBatis로 쓰고 트랙만 여기서 쓰면 UPDATE가 두 번 나가고, 둘 사이에서 실패하면 종료 시각은 찍혔는데 트랙이 없는 기록이 남는다.
  *
+ * ⚠️ <b>여기서 쓴 변경을 MyBatis는 알지 못한다.</b> MyBatis의 1차 캐시는 자기 UPDATE가 나갈 때만 비워지므로, 한 트랜잭션 안에서 이 DAO로 쓰고 RidingSessionDao로 다시 읽으면 갱신 전 객체가 돌아온다. 실제로 종료 응답이 종료 전 값으로 나갔다. application.yml의 local-cache-scope를 STATEMENT로 두어 막는다.
+ *
  * ⚠️ RouteDao와 같은 함정 두 가지가 여기에도 있다. ST_GeomFromGeoJSON의 결과는 SRID가 0이라 ST_SetSRID로 4326을 명시해야 하고, 앱이 고도를 담아 보내면 3차원 좌표가 되므로 ST_Force2D로 Z를 떨궈야 한다.
  */
 @Repository

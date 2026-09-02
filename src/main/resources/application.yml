@@ -125,7 +125,18 @@ mybatis:
     map-underscore-to-camel-case: true    # user_id → userId 자동 매핑
     default-statement-timeout: 30
     jdbc-type-for-null: NULL
-    cache-enabled: false                  # MVP에선 캐시 미사용 (명시적)
+    cache-enabled: false                  # 2차 캐시 미사용 (명시적)
+    # 1차(로컬) 캐시를 문장 단위로 제한한다. cache-enabled는 2차 캐시만 끄고,
+    # 1차 캐시는 이 값으로만 제어되며 기본값이 SESSION이다.
+    #
+    # SESSION이면 한 트랜잭션 안에서 같은 조회를 두 번 할 때 두 번째가 캐시에서 나온다.
+    # MyBatis로 쓴 경우엔 UPDATE가 캐시를 비워 문제가 없지만, JdbcClient로 쓴 변경은
+    # MyBatis가 알지 못해 갱신 전 객체가 그대로 돌아온다.
+    # 실제로 라이딩 종료(JdbcClient UPDATE) 응답이 종료 전 값으로 나갔다.
+    #
+    # ADR-002가 PostGIS 구간을 JdbcClient로 쓰라고 해서 이 조합은 앞으로도 계속 생긴다.
+    # 조회마다 캐시를 비우는 비용보다 낡은 값을 응답하는 쪽이 훨씬 비싸다.
+    local-cache-scope: STATEMENT
 
 # ===== Server =====
 server:
