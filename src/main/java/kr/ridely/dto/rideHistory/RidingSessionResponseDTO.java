@@ -13,7 +13,8 @@ import java.time.OffsetDateTime;
  *
  * 아래 API들의 응답으로 함께 사용한다:
  *   - POST  /api/v1/riding-sessions       (시작 직후 — 아직 안 끝나서 대부분 null)
- *   - PATCH /api/v1/riding-sessions/{id}  (종료 직후 — 모든 값이 채워짐)
+ *   - PATCH /api/v1/riding-sessions/{id}  (종료 직후 — trackGeoJson을 뺀 나머지가 채워짐)
+ *   - GET   /api/v1/riding-sessions/{id}  (단건 — trackGeoJson이 여기서만 채워진다)
  *   - GET   /api/v1/riding-sessions       (내 라이딩 기록 목록)
  *
  * 대응 테이블: riding_session
@@ -64,8 +65,17 @@ public class RidingSessionResponseDTO {
     /** 평균 속도(km/h). 종료 전에는 null */
     private BigDecimal avgSpeedKmh;
 
-    /** 완주 여부. 종료 전에는 false */
-    private boolean isCompleted;
+    /**
+     * 완주 여부. 종료 전에는 false.
+     *
+     * 래퍼 타입(Boolean)인 이유는 JSON 키 때문이다. 원시 boolean이면 Lombok이 접근자를
+     * isCompleted()·setCompleted()로 만들고, Jackson이 is 접두사를 떼어 completed로 내보낸다.
+     * 그러면 PATCH 요청은 isCompleted로 받으면서 응답은 completed로 나가 키가 어긋난다.
+     * MyBatis도 is_completed 컬럼을 setIsCompleted로 찾으므로 원시 타입이면 매핑되지 않는다.
+     *
+     * 컬럼이 NOT NULL DEFAULT FALSE라 값이 null로 나올 일은 없다.
+     */
+    private Boolean isCompleted;
 
     /** 방문한 관광지 수 */
     private int visitedPoiCount;
@@ -75,8 +85,13 @@ public class RidingSessionResponseDTO {
 
     /**
      * 실제 이동 경로 (GeoJSON LineString 문자열).
-     * 목록 조회에서는 응답이 무거워지므로 담지 않는다 (null).
-     * 단건 상세 조회에서만 채워진다.
+     *
+     * <b>단건 조회에서만 채워진다.</b> 목록에는 담지 않는다 - 트랙 하나가 좌표 수백~수천 개라
+     * 한 페이지 응답이 수 MB가 된다.
+     *
+     * 트랙을 보내지 않고 종료한 세션이면 단건 조회에서도 null이다.
+     *
+     * 좌표는 2차원이다. 저장할 때 ST_Force2D로 고도를 떨궜다.
      */
     private String trackGeoJson;
 }
