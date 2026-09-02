@@ -30,7 +30,7 @@ import java.time.OffsetDateTime;
  *   "customName": "주말 한강 코스",
  *   "memo": "선유도공원 카페 들르기 좋음",
  *   "isFavorite": true,
- *   "createdAt": "2026-07-09T14:20:00+09:00",
+ *   "createdAt": "2026-07-09T05:20:00Z",
  *   "aiTitle": "한강 따라 14km, 적당히 땀 빼는 코스",
  *   "totalDistanceKm": 14.8,
  *   "estimatedDurationMin": 58,

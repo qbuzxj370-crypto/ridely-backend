@@ -26,8 +26,8 @@ import java.time.OffsetDateTime;
  * {
  *   "ridingSessionId": 8,
  *   "recommendedRouteId": 42,
- *   "startedAt": "2026-07-09T09:00:00+09:00",
- *   "endedAt": "2026-07-09T09:54:00+09:00",
+ *   "startedAt": "2026-07-09T00:00:00Z",
+ *   "endedAt": "2026-07-09T00:54:00Z",
  *   "distanceKm": 14.6,
  *   "avgSpeedKmh": 16.2,
  *   "isCompleted": true,
