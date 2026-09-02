@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +21,7 @@ import java.util.Map;
  * 처리 대상:
  *   - BusinessException            → 해당 ErrorCode의 HTTP 상태로 응답
  *   - 요청 본문 검증 실패(@Valid)   → COMMON-001
+ *   - 요청 본문을 읽지 못함(JSON 문법 오류·필수 본문 누락) → COMMON-001
  *   - 쿼리 파라미터 검증 실패       → COMMON-001
  *   - 그 외 모든 예외              → COMMON-500
  */
@@ -79,6 +81,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         log.warn("파라미터 타입 불일치 - {}={}", e.getName(), e.getValue());
         return badRequest(Map.of(e.getName(), "값의 형식이 올바르지 않습니다"));
+    }
+
+    /**
+     * 요청 본문을 읽지 못함 (JSON 문법 오류, 타입 불일치, 필수 본문 누락).
+     *
+     * 이 핸들러가 없으면 Exception 폴백으로 떨어져 COMMON-500이 나간다. 따옴표 하나 빠뜨린 요청이
+     * 서버 장애로 보이고, 클라이언트는 재시도해야 할지 요청을 고쳐야 할지 판단할 수 없다.
+     *
+     * 파싱 위치·기대 타입은 details에 넣지 않는다. 내부 클래스명과 필드 경로가 그대로 노출된다.
+     * 개발자는 서버 로그를 본다.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException e) {
+        log.warn("요청 본문을 읽지 못했다 - {}", e.getMessage());
+        return badRequest(Map.of("body", "요청 본문의 형식이 올바르지 않습니다"));
     }
 
     /** 그 외 모든 예외 (최후의 방어선) — 스택트레이스 포함 ERROR 로깅 */
