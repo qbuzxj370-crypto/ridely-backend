@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ridely.dao.RidingSessionDao">
+
+    <!--
+        조회가 쓰는 컬럼. 변환은 map-underscore-to-camel-case 설정이 처리한다.
+
+        track_geom은 넣지 않는다. GPS 트랙 하나가 좌표 수백~수천 개라 목록에 실으면
+        한 페이지 응답이 수 MB가 된다. 꺼내려면 ST_AsGeoJSON이 필요해 JdbcClient로 가야 하고,
+        지금은 그 값을 돌려받아야 하는 화면이 없다 - 트랙을 보낸 쪽이 앱 자신이고
+        서버는 W5의 임베딩 적재에 쓴다.
+    -->
+    <sql id="selectColumns">
+        riding_session_id,
+        recommended_route_id,
+        started_at,
+        ended_at,
+        distance_km,
+        avg_speed_kmh,
+        is_completed,
+        visited_poi_count,
+        alert_received_count
+    </sql>
+
+    <!--
+        라이딩 시작.
+
+        started_at을 클라이언트에게 받지 않고 NOW()로 찍는 이유는 기기 시계가 틀어져 있을 수 있어서다.
+        틀어진 시각이 들어가면 chk_session_time(ended_at >= started_at)에 걸려 종료가 막힌다.
+
+        &lt;insert&gt;가 아니라 &lt;select&gt;인 이유는 SavedRouteMapper.insertReturningId와 같다.
+        MyBatis의 insert는 반환값이 갱신 행 수뿐이라 생성 번호를 받으려면 파라미터 객체에
+        써 넣어야 하는데, 요청 DTO에 그 필드를 둘 이유가 없다.
+
+        recommended_route_id는 null을 허용한다(자유 주행). FK가 ON DELETE SET NULL이라
+        나중에 추천 코스가 지워져도 세션 기록은 남는다.
+    -->
+    <select id="insertReturningId" resultType="long">
+        INSERT INTO riding_session (user_id, recommended_route_id, started_at)
+        VALUES (#{userId},
+                #{recommendedRouteId, jdbcType=BIGINT},
+                NOW())
+        RETURNING riding_session_id
+    </select>
+
+    <select id="selectById" resultType="kr.ridely.dto.rideHistory.RidingSessionResponseDTO">
+        SELECT <include refid="selectColumns"/>
+          FROM riding_session
+         WHERE riding_session_id = #{ridingSessionId}
+           AND user_id = #{userId}
+    </select>
+
+    <!--
+        목록. 최근 시작한 순이다.
+
+        riding_session_id를 두 번째 정렬 키로 두는 이유는 같은 시각에 시작한 세션의 순서를
+        고정하기 위해서다. 정렬이 흔들리면 페이지를 넘길 때 같은 항목이 두 번 나오거나 건너뛴다.
+        started_at이 NOW()라 밀리초까지 같을 일은 드물지만, 목록 정렬은 흔들리면 원인을 찾기 어렵다.
+    -->
+    <select id="selectByUserId" resultType="kr.ridely.dto.rideHistory.RidingSessionResponseDTO">
+        SELECT <include refid="selectColumns"/>
+          FROM riding_session
+         WHERE user_id = #{userId}
+         ORDER BY started_at DESC, riding_session_id DESC
+         LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*) FROM riding_session WHERE user_id = #{userId}
+    </select>
+
+    <!-- 소유자를 보지 않는다. 404와 403을 구분하는 용도라 남의 것도 true여야 한다 -->
+    <select id="existsById" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM riding_session WHERE riding_session_id = #{ridingSessionId})
+    </select>
+
+</mapper>

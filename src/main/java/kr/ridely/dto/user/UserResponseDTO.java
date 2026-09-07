@@ -26,7 +26,7 @@ import java.time.OffsetDateTime;
  *     "email": "rider@example.com",
  *     "status": "ACTIVE",
  *     "lastLoginAt": null,
- *     "createdAt": "2026-07-09T14:20:00+09:00"
+ *     "createdAt": "2026-07-09T05:20:00Z"
  *   },
  *   "error": null
  * }

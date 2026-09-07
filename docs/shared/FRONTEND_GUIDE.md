@@ -152,7 +152,7 @@ ridely.auth.refresh_token
 |---|---|---|---|
 | `COMMON-001` | 400 | 입력값 검증 실패 | 모든 요청 (details 참고) |
 | `COMMON-002` | 401 | 로그인 필요 | 토큰 없이 보호 API 호출 |
-| `COMMON-003` | 403 | 남의 리소스 접근 | 저장 경로 단건·수정·삭제 |
+| `COMMON-003` | 403 | 남의 리소스 접근 | 저장 경로·라이딩 세션 |
 | `COMMON-004` | 404 | 대상 없음 | 조회 실패 |
 | `COMMON-500` | 500 | 서버 오류 | 예기치 못한 실패 |
 | `AUTH-101` | 409 | 이미 가입된 아이디 | 회원가입 |
@@ -296,6 +296,40 @@ GET /api/v1/saved-routes?page=0&size=20&favoriteOnly=true&sort=name
 - **메모를 지우려면 빈 문자열을 보낸다.** `PATCH`에서 `null`은 "안 보냈다"라는 뜻이라 지우기와 구분되지 않는다.
 - 같은 코스를 두 번 저장하면 `SAVED-001`(409)이다. 저장 버튼의 상태를 눌린 모양으로 바꿔 두면 대부분 막을 수 있다.
 
+### 라이딩 세션 (토큰 필요)
+
+| Method | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/v1/riding-sessions` | 라이딩 시작 |
+| PATCH | `/api/v1/riding-sessions/{ridingSessionId}` | 라이딩 종료 |
+| GET | `/api/v1/riding-sessions` | 내 라이딩 기록 (페이지) |
+| GET | `/api/v1/riding-sessions/{ridingSessionId}` | 기록 단건. **궤적은 여기서만 온다** |
+
+시작할 때는 추천 코스 번호만 보낸다. 비우면 자유 주행이고, 그때는 본문을 통째로 생략해도 된다.
+
+```json
+{ "recommendedRouteId": 42 }
+```
+
+종료할 때 라이딩 중 모은 값을 한 번에 보낸다. 매초 보내지 않는 이유는 배터리와 통신량 때문이다.
+
+```json
+{
+  "distanceKm": 14.6,
+  "avgSpeedKmh": 16.2,
+  "isCompleted": true,
+  "visitedPoiCount": 2,
+  "alertReceivedCount": 1,
+  "trackGeoJson": "{\"type\":\"LineString\",\"coordinates\":[[126.89,37.54],[126.90,37.54]]}"
+}
+```
+
+- **시작·종료 시각은 서버가 찍는다.** 보내지 마라. 기기 시계가 앞서 있으면 시작보다 이른 종료 시각이 들어가 종료가 막힌다.
+- **종료 요청은 재시도해도 안전하다.** 이미 끝난 세션에 다시 보내면 에러 대신 기존 기록이 그대로 돌아온다. 타임아웃 후 그냥 다시 보내면 된다. 단 **값이 달라도 덮어쓰지 않으므로**, 수정 목적으로 다시 보내지는 마라.
+- **`trackGeoJson`은 솎아서 보낸다.** 10초 또는 50m 간격이 기준이다. 매 좌표를 다 보내면 요청이 너무 커진다. 고도가 섞여 있어도 서버가 떨군다. GeoJSON LineString이 아니면 `COMMON-001`이다.
+- **궤적은 단건 조회에서만 온다.** 목록에 넣으면 한 페이지가 수 MB가 된다. 기록 상세 화면은 `GET /riding-sessions/{id}`를 부른다. 트랙을 안 보내고 종료한 세션이면 단건에서도 null이고, 좌표는 2차원이다(고도는 서버가 떨군다).
+- **`endedAt`이 null이면 달리는 중이다.** 앱이 죽었다 살아났을 때 목록에서 이 항목을 찾아 이어 달리면 된다. 진행 중인 세션이 있어도 새 라이딩 시작은 막지 않는다.
+
 ### 기타
 
 | Method | 경로 | 설명 |
@@ -308,7 +342,6 @@ GET /api/v1/saved-routes?page=0&size=20&favoriteOnly=true&sort=name
 
 화면 개발 순서를 잡을 때 참고한다. 준비되는 대로 이 문서와 Swagger에 반영된다.
 
-- 라이딩 세션 (`/riding-sessions`)
 - 인프라 POI (`/pois/nearby`) — 음수대·수리소·따릉이·사고다발지
 - 지오코딩 (`/geo/search`) — 주소·장소명 → 좌표
 - 회원 탈퇴, 비밀번호 변경
