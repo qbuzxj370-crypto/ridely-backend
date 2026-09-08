@@ -122,7 +122,14 @@ public class RidingSessionSpatialDao {
             if (request.getTrackGeoJson() == null) {
                 throw e;
             }
-            log.warn("GPS 트랙을 읽지 못했다: ridingSessionId={} userId={}", ridingSessionId, userId, e);
+            // 예외 클래스명을 남긴다. 트랙 파싱이 아닌 원인도 이 자리로 오기 때문이다.
+            // 2026-09-08에 RidingSessionEndTest가 간헐적으로 여기서 깨졌는데
+            // 재현되지 않아 원인을 못 잡았다. chk_session_time 위반이 유력한데
+            // (Docker VM 시계가 호스트 절전 후 튀면 ended_at < started_at이 된다)
+            // 로그가 "GPS 트랙을 읽지 못했다"뿐이라 확인할 수 없었다
+            log.warn("종료 UPDATE가 실패했다. 예외={} / ridingSessionId={} userId={} / 트랙 길이={}",
+                    e.getClass().getSimpleName(), ridingSessionId, userId,
+                    request.getTrackGeoJson().length(), e);
             throw new BusinessException(ErrorCode.COMMON_001);
         }
     }
