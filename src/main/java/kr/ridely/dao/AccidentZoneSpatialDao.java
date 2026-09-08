@@ -1,6 +1,5 @@
 package kr.ridely.dao;
 
-import kr.ridely.config.MvpAreaProperties;
 import kr.ridely.dto.route.PassingDangerZoneDTO;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -19,11 +18,9 @@ import java.util.Optional;
 public class AccidentZoneSpatialDao {
 
     private final JdbcClient jdbcClient;
-    private final MvpAreaProperties mvpArea;
 
-    public AccidentZoneSpatialDao(JdbcClient jdbcClient, MvpAreaProperties mvpArea) {
+    public AccidentZoneSpatialDao(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
-        this.mvpArea = mvpArea;
     }
 
     /**
@@ -31,9 +28,15 @@ public class AccidentZoneSpatialDao {
      *
      * 등급으로 거른다. 전 등급을 피하면 우회가 거리를 크게 늘리는데(실측 12km 목표에 15.5km, +29%) 그 우회의 대부분이 주의 등급 구역 때문이다. 무엇을 피할지가 곧 거리를 조절하는 손잡이라, 제약을 이진으로 켜고 끄는 대신 강도로 다룬다. 기본값은 application.yml의 ridely.route.avoid-danger-levels에 있다.
      *
-     * 서비스 지역 전체를 대상으로 한다. 경로 주변만 좁혀 뽑는 방법도 있지만 그러려면 "경로가 어디까지 뻗을지"를 미리 알아야 하는데, 거리 보정 연장점이 어디에 붙을지는 경로를 그려 봐야 안다. 출발지·도착지를 잇는 축 주변으로 자르면 그 연장 구간이 조회 범위 밖으로 나가 회피가 뚫린다. 요청 검증이 출발지·도착지를 서비스 지역 안으로 이미 제한하므로 지역 전체를 넘기면 그런 구멍이 없다.
+     * 적재된 구역 전체를 대상으로 한다. 지역이나 경로 주변으로 좁히지 않는다.
      *
-     * ⚠️ 구역 수가 늘면 라우팅 엔진이 거부하거나 느려질 수 있다. 서울 최신 연도 111건 전부를 넘겨 동작하는 것은 확인했다. 서비스 지역이 넓어지면 축 주변으로 좁히는 방식을 다시 봐야 한다.
+     * 경로 주변으로 좁히는 방법은 쓸 수 없다. 거리 보정 연장점이 어디에 붙을지는 경로를 그려 봐야 알기 때문에, 출발지·도착지를 잇는 축 주변으로 자르면 그 연장 구간이 조회 범위 밖으로 나가 회피가 뚫린다.
+     *
+     * <b>서비스 지역(ridely.mvp-area)으로 좁히는 것도 쓸 수 없다.</b> 예전에는 그 경계 상자로 걸렀는데, 그것이 <b>요청 검증이 경로 전체를 서비스 지역 안에 가둔다</b>는 전제 위에 있었다. 그 전제가 틀렸다 - 검증은 출발지·도착지 두 점만 보고 그 사이를 잇는 선은 제한하지 않는다. 경계에서 1km 안쪽에서 출발한 10km 순환은 밖으로 나가고, 실제로 나가서 경계 밖 위험 등급 구역을 지났다.
+     *
+     * 통과 판정(findPassing)에는 그 필터가 없어 <b>피하지 않은 구역을 잡아내는 비대칭</b>이 있었다. 회피를 켰는데 위험·경고 구역이 응답에 나오는 상태였다. 2024년 111건 중 38건이 경계 밖이다 (ADR-011).
+     *
+     * ⚠️ 구역 수가 늘면 라우팅 엔진이 거부하거나 느려질 수 있다. 서울 최신 연도 111건 전부를 넘겨 동작하는 것은 확인했다. 적재 범위가 넓어지면 이 방식을 다시 봐야 한다.
      *
      * @param dangerLevels 회피할 등급. 비어 있으면 회피하지 않는다
      * @return 합쳐진 MultiPolygon GeoJSON. 대상이 없으면 비어 있다
@@ -48,24 +51,17 @@ public class AccidentZoneSpatialDao {
          *               두 번 넘길 이유가 없다.
          *   ST_Multi    ST_Union 결과가 단일 Polygon으로 나올 수 있다. avoid_polygons는
          *               둘 다 받지만 타입을 하나로 고정해야 호출부가 분기하지 않는다.
-         *   &&          경계 상자 겹침. 인덱스를 타고, 어차피 뒤에 정확한 판정이 없어도
-         *               회피 대상을 조금 넉넉히 잡는 것은 안전한 방향이다.
          */
         String sql = """
                 SELECT ST_AsGeoJSON(ST_Multi(ST_Union(polygon_geom)))
                 FROM accident_zone
                 WHERE data_year = (SELECT MAX(data_year) FROM accident_zone)
                   AND danger_level = ANY(:dangerLevels)
-                  AND polygon_geom && ST_MakeEnvelope(:minLng, :minLat, :maxLng, :maxLat, 4326)
                 """;
 
         // 집계 함수라 대상이 없어도 행은 하나 나온다. 값이 NULL일 뿐이다
         String geoJson = jdbcClient.sql(sql)
                 .param("dangerLevels", dangerLevels.toArray(new String[0]))
-                .param("minLng", mvpArea.minLng())
-                .param("minLat", mvpArea.minLat())
-                .param("maxLng", mvpArea.maxLng())
-                .param("maxLat", mvpArea.maxLat())
                 .query(String.class)
                 .single();
         return Optional.ofNullable(geoJson);
