@@ -39,8 +39,9 @@ public enum ErrorCode {
     // LLM이 실패하면 알고리즘 fallback으로 넘어가고, 그 fallback은 DB 후보만 쓴다.
     // 후보가 없는 경우는 아래 006이 이미 앞에서 걸러낸다. 즉 "최종 실패"라는 상태가 없다.
     //
-    // 005(회피 라우팅 실패)도 넣지 않는다. 회피에 실패하면 회피를 포기하고 코스를 주며
-    // avoidDangerZonesApplied: false로 알린다 (ADR-011, SPRINT_W4 C4-3).
+    // 005(회피 라우팅 실패)도 넣지 않는다. 사고다발지는 교차로에 생기고 그 교차로가
+    // 유일한 통로일 수 있어 회피 경로를 못 찾는 일이 있다. 그때는 코스를 안 주는 것보다
+    // 회피를 포기하고 주는 편이 낫다고 보고, avoidDangerZonesApplied: false로 알린다.
     ROUTE_001("ROUTE-001", HttpStatus.BAD_REQUEST, "우선순위 합이 1이 되어야 합니다"),
     ROUTE_002("ROUTE-002", HttpStatus.BAD_REQUEST, "목표 거리가 적절하지 않습니다"),
     ROUTE_003("ROUTE-003", HttpStatus.BAD_REQUEST, "서비스 지역이 아닙니다"),
@@ -49,7 +50,8 @@ public enum ErrorCode {
     //
     // 500이 아니라 422인 이유는 사용자가 고칠 수 있어서다. 출발지를 한강 쪽으로 옮기거나
     // 도착지를 지정하면 축이 선이 되어 그 주변에서 후보를 줍는다.
-    // 경계 안 격자의 6.4%가 이 상태다 (ADR-011 문제 C).
+    // 서비스 지역을 450m 격자로 훑어 반경 1.5km 안의 후보를 세어 보면 6.4%가 0건이고
+    // 거의 전부 경계선·모서리다. 한강이라는 띠를 사각형으로 덮어 모서리가 내륙으로 남았다.
     ROUTE_006("ROUTE-006", HttpStatus.UNPROCESSABLE_ENTITY,
             "주변에 코스를 만들 만한 장소가 없습니다. 출발지를 옮기거나 도착지를 지정해 보세요"),
 

@@ -145,9 +145,9 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         RouteCandidatesDTO candidates = candidateCollector.collect(
                 startLng, startLat, endLng, endLat, targetDistanceKm);
         if (candidates.isEmpty()) {
-            // 서버 오류가 아니라 적재 범위의 구멍이다. MVP 경계를 450m 격자로 훑었을 때
-            // 반경 1,500m 안에 후보가 하나도 없는 지점이 6.4%였고 거의 전부 경계선·모서리였다
-            // (ADR-011 문제 C). 한강이라는 띠를 사각형으로 덮은 결과 모서리가 내륙으로 남았다.
+            // 서버 오류가 아니라 적재 범위의 구멍이다. 서비스 지역을 450m 격자로 훑었을 때
+            // 반경 1,500m 안에 후보가 하나도 없는 지점이 6.4%였고 거의 전부 경계선·모서리였다.
+            // 한강이라는 띠를 사각형으로 덮은 결과 모서리가 내륙으로 남았다.
             //
             // 도착지가 있으면 축이 선이 되어 한강 쪽으로 뻗으므로 대개 살아난다. 순환 코스가
             // 이 자리에 걸리므로 안내도 그 방향으로 준다.
