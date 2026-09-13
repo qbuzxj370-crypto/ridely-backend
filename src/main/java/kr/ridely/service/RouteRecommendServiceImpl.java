@@ -398,11 +398,20 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         return result;
     }
 
-    private String reasonOf(CourseDesignDTO design, CandidateDTO candidate) {
+    /**
+     * 경유지를 고른 이유를 찾는다. 없으면 null이다.
+     *
+     * ⚠️ <b>{@code map}을 {@code findFirst} 앞에 두면 안 된다.</b> reason이 null인 경유지를 만나면 {@code Optional.of(null)}이 되어 NPE가 난다. 규칙으로 고른 경유지는 reason이 항상 null이라(FallbackCourseDesigner) 대체가 일어나는 순간 터진다. 실제로 그렇게 터졌다.
+     *
+     * 먼저 경유지를 찾고 그다음 reason을 꺼낸다. {@code Optional.map}은 null을 빈 값으로 받는다.
+     *
+     * static에 package-private인 이유는 테스트가 직접 부르기 위해서다. 인스턴스 상태를 쓰지 않는 순수 함수인데, 이걸 부르자고 생성자 인자 열넷짜리 서비스를 세우는 것은 과하다.
+     */
+    static String reasonOf(CourseDesignDTO design, CandidateDTO candidate) {
         return design.waypointsOrEmpty().stream()
                 .filter(w -> candidate.matches(w.getType(), w.getId()))
-                .map(CourseDesignDTO.SelectedWaypoint::getReason)
                 .findFirst()
+                .map(CourseDesignDTO.SelectedWaypoint::getReason)
                 .orElse(null);
     }
 
