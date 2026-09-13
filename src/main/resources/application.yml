@@ -95,6 +95,28 @@ spring:
             #    코멘트가 RPD 20에 묶인다. 유료 티어 전환이 근본 해결책이다 — DATA_SOURCES 4장.
             model: gemini-3.5-flash-lite
             temperature: 0.7
+    # Spring AI 자체 재시도를 끈다.
+    #
+    # 기본값(SpringAiRetryProperties)이 대화형 요청에 맞지 않는다. maxAttempts 10,
+    # 백오프 2초에서 시작해 5배씩 늘고 상한이 180초다. 배치용 설정이다.
+    # 우리 목표 p50은 10초이고, 전송 실패는 기다리는 대신 fallback으로 간다.
+    #
+    # ⚠️ 지금 이 값은 실제로는 아무것도 바꾸지 않는다. 2026-09-13 관측에서
+    # 재시도가 애초에 일어나지 않았다 - GoogleGenAiChatModel이 전송 실패를
+    # RuntimeException(Failed to generate content)으로 싸서 올리는데, Spring AI의
+    # 재시도 정책은 TransientAiException만 대상으로 삼기 때문이다.
+    # 로그에 Retry count가 호출당 한 줄씩만 찍힌 것이 근거다.
+    #
+    # 그래도 남겨 둔다. 예외 분류가 바뀌거나 다른 모델로 옮기면 기본값 10이
+    # 그대로 살아나고, 그때는 한 요청이 수 분을 돈다.
+    #
+    # 우리 재시도(ridely.ai.llm.max-retry)와 층이 다르다. 저쪽은 HTTP 전송 실패고
+    # 이쪽은 구조화 출력 JSON이 깨졌을 때이며 즉시 한 번만 다시 부른다.
+    #
+    # maxAttempts는 첫 호출을 포함한 총 횟수다. 1이면 재시도 없음이다.
+    # onClientErrors 기본값이 false라 4xx는 원래 재시도하지 않는다 - 429가 여기 든다.
+    retry:
+      max-attempts: 1
     # pgvector Vector Store — RAG 착수 시 재활성 (pom의 pgvector starter 주석과 세트)
     # vectorstore:
     #   pgvector:
@@ -263,6 +285,8 @@ ridely:
   ai:
     llm:
       primary-provider: gemini          # gemini | groq | ollama | claude
+      # ⚠️ spring.ai.retry는 파일 아래쪽에 따로 있다. 그쪽을 끄지 않으면
+      # 여기 timeout-seconds가 의미를 잃는다 - 매 시도는 끊기지만 재시도가 계속된다.
       # 두 곳에서 쓴다. GenAiClientConfig가 OkHttp callTimeout으로 걸어 실제 호출을 죽이고,
       # StructuredLlmCaller가 여기에 5초를 더해 보조 타임아웃을 건다.
       #
