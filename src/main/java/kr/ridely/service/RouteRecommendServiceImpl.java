@@ -16,8 +16,6 @@ import kr.ridely.dto.route.RouteCandidatesDTO;
 import kr.ridely.dto.route.RouteRecommendRequestDTO;
 import kr.ridely.dto.route.RouteRecommendResponseDTO;
 import kr.ridely.dto.route.WaypointDTO;
-import kr.ridely.infra.llm.CoachCommentClient;
-import kr.ridely.infra.llm.CourseDesignClient;
 import kr.ridely.infra.llm.LlmProperties;
 import kr.ridely.infra.ors.OrsClient;
 import kr.ridely.infra.ors.OrsRouteResult;
@@ -68,9 +66,14 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
 
     private static final double KM_TO_M = 1000.0;
 
+    /**
+     * 설계나 코멘트를 규칙으로 대체했을 때 기록하는 값.
+     *
+     * recommended_route.llm_provider와 응답의 aiProvider에 같은 값이 들어간다. 지금까지 쌓인 46건은 전부 gemini라 이 값이 보이면 대체된 응답이다.
+     */
+    private static final String PROVIDER_FALLBACK = "FALLBACK";
+
     private final InfraCandidateCollector candidateCollector;
-    private final CourseDesignClient courseDesignClient;
-    private final CoachCommentClient coachCommentClient;
     private final OrsClient orsClient;
     private final IntensityCalculator intensityCalculator;
     private final AscentEstimator ascentEstimator;
@@ -81,10 +84,12 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final UserSettingsService userSettingsService;
     private final RouteProperties routeProperties;
     private final LlmProperties llmProperties;
+    private final CourseDesignResolver courseDesignResolver;
+    private final CoachCommentResolver coachCommentResolver;
 
     public RouteRecommendServiceImpl(InfraCandidateCollector candidateCollector,
-                                     CourseDesignClient courseDesignClient,
-                                     CoachCommentClient coachCommentClient,
+                                     CourseDesignResolver courseDesignResolver,
+                                     CoachCommentResolver coachCommentResolver,
                                      OrsClient orsClient,
                                      IntensityCalculator intensityCalculator,
                                      AscentEstimator ascentEstimator,
@@ -100,8 +105,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         this.accidentZoneSpatialDao = accidentZoneSpatialDao;
         this.userSettingsService = userSettingsService;
         this.candidateCollector = candidateCollector;
-        this.courseDesignClient = courseDesignClient;
-        this.coachCommentClient = coachCommentClient;
+        this.courseDesignResolver = courseDesignResolver;
+        this.coachCommentResolver = coachCommentResolver;
         this.orsClient = orsClient;
         this.intensityCalculator = intensityCalculator;
         this.ascentEstimator = ascentEstimator;
@@ -140,14 +145,22 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         RouteCandidatesDTO candidates = candidateCollector.collect(
                 startLng, startLat, endLng, endLat, targetDistanceKm);
         if (candidates.isEmpty()) {
-            log.error("후보가 한 건도 없다. 서비스 지역 안이지만 주변 데이터가 비어 있다");
-            throw new BusinessException(ErrorCode.COMMON_500);
+            // 서버 오류가 아니라 적재 범위의 구멍이다. MVP 경계를 450m 격자로 훑었을 때
+            // 반경 1,500m 안에 후보가 하나도 없는 지점이 6.4%였고 거의 전부 경계선·모서리였다
+            // (ADR-011 문제 C). 한강이라는 띠를 사각형으로 덮은 결과 모서리가 내륙으로 남았다.
+            //
+            // 도착지가 있으면 축이 선이 되어 한강 쪽으로 뻗으므로 대개 살아난다. 순환 코스가
+            // 이 자리에 걸리므로 안내도 그 방향으로 준다.
+            log.warn("후보가 한 건도 없다. 서비스 지역 안이지만 주변 데이터가 비어 있다: {},{} 순환={}",
+                    startLng, startLat, circular);
+            throw new BusinessException(ErrorCode.ROUTE_006);
         }
 
-        CourseDesignDTO design = courseDesignClient.design(
+        CourseDesignResolver.Resolved designed = courseDesignResolver.resolve(
                 candidates, targetDistanceKm, circular, straightLineKm,
                 convenience, exercise, scenery);
-        List<CandidateDTO> waypoints = resolveWaypoints(design, candidates);
+        CourseDesignDTO design = designed.design();
+        List<CandidateDTO> waypoints = designed.waypoints();
 
         String avoidGeometry = resolveAvoidGeometry(userId, avoidHeader);
         Routed routed = routeWithAvoidFallback(
@@ -160,20 +173,27 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                 accidentZoneSpatialDao.findPassing(route.getGeometryGeoJson());
 
         String intensityLevel = intensityCalculator.calculate(route.distanceKm());
-        CoachCommentDTO comment = coachCommentClient.generate(
+        CoachCommentResolver.Resolved commented = coachCommentResolver.resolve(
                 design, candidates, targetDistanceKm, circular,
                 route.distanceKm(), route.durationMin(), intensityLevel,
-                dangerZones, routed.avoidApplied());
+                dangerZones, routed.avoidApplied(), waypoints.size());
+        CoachCommentDTO comment = commented.comment();
 
-        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳(회피 {}), {}, 총 {}ms",
+        // 설계와 코멘트 중 하나라도 대체됐으면 FALLBACK이다. 부분 대체를 따로 표기하지 않는 이유는
+        // 클라이언트가 할 일이 같아서다 - 어느 쪽이 대체됐든 "AI가 만든 해설"로 보여주면 안 된다
+        boolean llmFallback = designed.fallback() || commented.fallback();
+        String provider = llmFallback ? PROVIDER_FALLBACK : llmProperties.primaryProvider();
+
+        log.info("코스 추천 완료: 목표 {}km → 실측 {}km, 경유지 {}곳, 사고다발지 {}곳(회피 {}), {}, {}, 총 {}ms",
                 targetDistanceKm, route.distanceKm(), waypoints.size(), dangerZones.size(),
                 routed.avoidApplied() ? "적용" : "미적용",
-                intensityLevel, System.currentTimeMillis() - startedAt);
+                intensityLevel, provider, System.currentTimeMillis() - startedAt);
 
         RouteRecommendResponseDTO response = assemble(
                 route, waypoints, design, comment, intensityLevel, dangerZones, routed.avoidApplied());
+        response.setAiProvider(provider);
 
-        RouteDao.Saved saved = routeDao.insert(request, response, userId, llmProperties.primaryProvider());
+        RouteDao.Saved saved = routeDao.insert(request, response, userId, provider);
         response.setRecommendedRouteId(saved.recommendedRouteId());
         response.setCreatedAt(saved.createdAt());
         // 저장된 형상으로 바꿔 넣는다. ORS 원본은 3차원이라 그대로 두면
@@ -189,30 +209,6 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                     log.warn("추천 코스를 찾지 못했다: {}", recommendedRouteId);
                     return new BusinessException(ErrorCode.COMMON_004);
                 });
-    }
-
-    /**
-     * LLM이 고른 경유지 중 실재하는 것만 남긴다.
-     *
-     * 없는 번호를 만들어내는 경우가 있어 후보 목록과 대조한다. 지금은 걸러내기만 하고 재호출은 하지 않는다.
-     *
-     * 하나도 안 남아도 실패시키지 않는다. 출발지와 도착지만으로도 경로는 그려지고, 경유지 없는 코스가 추천 실패보다는 낫다. 다만 순환 코스는 출발지와 도착지가 같아 거리가 0이 되므로 ORS 쪽에서 걸린다.
-     */
-    private List<CandidateDTO> resolveWaypoints(CourseDesignDTO design, RouteCandidatesDTO candidates) {
-        List<CandidateDTO> resolved = new ArrayList<>();
-        for (CourseDesignDTO.SelectedWaypoint selected : design.waypointsOrEmpty()) {
-            Optional<CandidateDTO> found = candidates.find(selected.getType(), selected.getId());
-            if (found.isEmpty()) {
-                log.warn("실재하지 않는 경유지를 걸렀다: type={} id={}",
-                        selected.getType(), selected.getId());
-                continue;
-            }
-            resolved.add(found.get());
-        }
-        if (resolved.isEmpty()) {
-            log.warn("남은 경유지가 없다. 출발지와 도착지만으로 경로를 그린다");
-        }
-        return resolved;
     }
 
     /** 경로와 회피 적용 여부. 회피는 실패하면 꺼지므로 결과와 함께 돌려줘야 한다 */

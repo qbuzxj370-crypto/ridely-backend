@@ -132,4 +132,17 @@ public class RouteRecommendResponseDTO {
      * 비회원이면 null.
      */
     private String aiNextStepSuggestion;
+
+    /**
+     * 위 AI 필드를 무엇이 만들었는지. 예: "gemini", "FALLBACK"
+     *
+     * <b>FALLBACK이면 LLM이 아니라 규칙이 만든 것이다.</b> 코스 설계나 코멘트 중 하나라도 대체되면 이 값이 된다. 대체는 호출 실패·타임아웃뿐 아니라 톤 검증 위반으로도 일어난다.
+     *
+     * <b>화면은 이 값이 FALLBACK일 때 「AI 코치」로 표시하면 안 된다.</b> 문장이 측정값 나열이라 코치의 말로 보이지 않고, 경유지 선정 이유(waypoints[].reason)도 비어 있다. 코스 자체는 정상이므로 코스를 감추라는 뜻은 아니다.
+     *
+     * {@code avoidDangerZonesApplied}와 같은 역할이다 - 요청대로 다 못 해 줬을 때 조용히 넘기지 않고 응답에 실어 알린다.
+     *
+     * 대응 컬럼: recommended_route.llm_provider
+     */
+    private String aiProvider;
 }

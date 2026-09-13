@@ -34,10 +34,24 @@ public enum ErrorCode {
     POI_001("POI-001", HttpStatus.NOT_FOUND, "주변에 POI가 없습니다"),
 
     // 코스 추천
-    // 004(추천 실패)·005(회피 라우팅 실패)는 fallback 체계를 만들 때 함께 추가한다.
+    //
+    // 004(LLM 최종 실패)는 넣지 않았다. 설계에는 있었으나 이 구조에서는 날 수 없다.
+    // LLM이 실패하면 알고리즘 fallback으로 넘어가고, 그 fallback은 DB 후보만 쓴다.
+    // 후보가 없는 경우는 아래 006이 이미 앞에서 걸러낸다. 즉 "최종 실패"라는 상태가 없다.
+    //
+    // 005(회피 라우팅 실패)도 넣지 않는다. 회피에 실패하면 회피를 포기하고 코스를 주며
+    // avoidDangerZonesApplied: false로 알린다 (ADR-011, SPRINT_W4 C4-3).
     ROUTE_001("ROUTE-001", HttpStatus.BAD_REQUEST, "우선순위 합이 1이 되어야 합니다"),
     ROUTE_002("ROUTE-002", HttpStatus.BAD_REQUEST, "목표 거리가 적절하지 않습니다"),
     ROUTE_003("ROUTE-003", HttpStatus.BAD_REQUEST, "서비스 지역이 아닙니다"),
+    // 003과 다르다. 003은 경계 밖이고 이쪽은 경계 안인데 적재된 데이터가 없는 경우다.
+    // 003을 재사용하면 "여기는 서비스 지역이 아니다"라는 거짓말이 된다.
+    //
+    // 500이 아니라 422인 이유는 사용자가 고칠 수 있어서다. 출발지를 한강 쪽으로 옮기거나
+    // 도착지를 지정하면 축이 선이 되어 그 주변에서 후보를 줍는다.
+    // 경계 안 격자의 6.4%가 이 상태다 (ADR-011 문제 C).
+    ROUTE_006("ROUTE-006", HttpStatus.UNPROCESSABLE_ENTITY,
+            "주변에 코스를 만들 만한 장소가 없습니다. 출발지를 옮기거나 도착지를 지정해 보세요"),
 
     // 저장 경로
     // saved_route의 UNIQUE(user_id, recommended_route_id) 위반이다.
