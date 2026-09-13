@@ -1,7 +1,5 @@
 package kr.ridely.infra.llm;
 
-import kr.ridely.common.BusinessException;
-import kr.ridely.common.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -42,6 +40,13 @@ public class StructuredLlmCaller {
     private static final char START_DELIMITER = '<';
     private static final char END_DELIMITER = '>';
 
+    /**
+     * 보조 타임아웃을 전송 계층 타임아웃보다 이만큼 뒤에 둔다.
+     *
+     * GenAiClientConfig의 callTimeout이 먼저 발동해 콜을 죽이는 것이 정상 경로다. 그게 어떤 이유로든 안 들을 때만 여기가 잡는다.
+     */
+    private static final int OUTER_TIMEOUT_MARGIN_SECONDS = 5;
+
     private final ChatClient chatClient;
     private final LlmProperties properties;
 
@@ -76,21 +81,46 @@ public class StructuredLlmCaller {
     /**
      * 프롬프트 파일을 렌더링해 보내고 결과를 지정한 타입으로 받는다.
      *
-     * 타임아웃은 CompletableFuture로 건다. Spring AI의 blocking 호출에는 호출별 타임아웃 지점이 없어서다.
+     * <b>실패하면 파싱 실패에 한해 한 번 더 부른다.</b> 구조화 출력은 온도가 0이 아니라 같은 입력에도 JSON이 깨질 때가 있고, 그때는 다시 부르면 대개 성공한다. 재시도 횟수는 {@code ridely.ai.llm.max-retry}가 정한다.
      *
-     * ⚠️ 시간이 초과돼도 아래 호출 자체는 계속 돈다. 응답이 와도 버려질 뿐이고 스레드는 그때까지 물려 있다. 지금은 실패를 빨리 알리는 것이 우선이라 이대로 두고, 호출 취소는 fallback 체계를 만들 때 함께 본다.
+     * <b>타임아웃은 재시도하지 않는다.</b> 이미 제한 시간을 다 쓴 뒤라 한 번 더 부르면 사용자 대기가 두 배가 된다. 목표 p50이 10초인데 타임아웃만 15초다. 호출부가 즉시 fallback으로 넘기는 편이 빠르고, fallback은 LLM을 쓰지 않으므로 쿼터도 아낀다.
+     *
+     * <b>타임아웃이 두 겹이다.</b> 진짜 상한은 {@link GenAiClientConfig}가 거는 OkHttp callTimeout이고, 그쪽이 발동하면 콜이 취소되고 소켓이 닫혀 스레드와 RPM이 회수된다. 여기 orTimeout은 그보다 뒤에서 도는 보조 타임아웃이다 - HTTP 밖에서 멈추는 경우(구조화 출력 역직렬화 등)만 잡는다. 같은 값으로 두면 둘이 경합해 어느 예외가 올지 알 수 없어 간격을 벌려 둔다.
      *
      * @param purpose      로그에 남길 호출 목적. 어느 단계에서 실패했는지 구분한다
      * @param systemPrompt 페르소나 프롬프트 파일
      * @param userPrompt   지시문 프롬프트 파일. 치환자를 담는다
      * @param variables    치환자에 넣을 값
      * @param temperature  호출별 온도. 전역 설정을 덮어쓴다
+     * @throws LlmCallException 재시도까지 실패했을 때. 호출부가 fallback으로 받는다
      */
     public <T> T call(String purpose, Resource systemPrompt, Resource userPrompt,
                       Map<String, Object> variables, double temperature, Class<T> responseType) {
 
-        long startedAt = System.currentTimeMillis();
         Map<String, Object> params = withLoopParameters(variables);
+        int maxAttempts = Math.max(1, properties.maxRetry() + 1);
+
+        LlmCallException last = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return callOnce(purpose, systemPrompt, userPrompt, params, temperature,
+                        responseType, attempt);
+            } catch (LlmCallException e) {
+                last = e;
+                if (e.isTimeout() || attempt == maxAttempts) {
+                    break;
+                }
+                log.warn("LLM {} 재시도 {}/{}", purpose, attempt + 1, maxAttempts);
+            }
+        }
+        throw last;
+    }
+
+    private <T> T callOnce(String purpose, Resource systemPrompt, Resource userPrompt,
+                           Map<String, Object> params, double temperature,
+                           Class<T> responseType, int attempt) {
+
+        long startedAt = System.currentTimeMillis();
         try {
             T result = CompletableFuture
                     .supplyAsync(() -> chatClient.prompt()
@@ -100,24 +130,35 @@ public class StructuredLlmCaller {
                             .options(ChatOptions.builder().temperature(temperature).build())
                             .call()
                             .entity(responseType))
-                    .orTimeout(properties.timeoutSeconds(), TimeUnit.SECONDS)
+                    .orTimeout(outerTimeoutSeconds(), TimeUnit.SECONDS)
                     .join();
 
-            log.info("LLM {} 완료: {}ms (temperature {})",
-                    purpose, System.currentTimeMillis() - startedAt, temperature);
+            log.info("LLM {} 완료: {}ms (temperature {}, 시도 {})",
+                    purpose, System.currentTimeMillis() - startedAt, temperature, attempt);
             return result;
 
         } catch (CompletionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
-            if (cause instanceof TimeoutException) {
-                log.error("LLM {} 타임아웃: {}초 초과", purpose, properties.timeoutSeconds());
+            boolean timeout = cause instanceof TimeoutException;
+            if (timeout) {
+                log.error("LLM {} 타임아웃: {}초 초과 ({}ms 경과)",
+                        purpose, outerTimeoutSeconds(), System.currentTimeMillis() - startedAt);
             } else {
                 // 구조화 출력 파싱 실패와 치환자 누락도 여기로 온다.
                 // 원문을 보려면 org.springframework.ai 로그를 DEBUG로 올린다
                 log.error("LLM {} 실패: {}", purpose, cause.getMessage(), cause);
             }
-            throw new BusinessException(ErrorCode.COMMON_500);
+            throw new LlmCallException(purpose, timeout, cause.getMessage(), cause);
         }
+    }
+
+    /**
+     * 보조 타임아웃의 제한 시간.
+     *
+     * 전송 계층 callTimeout({@code timeout-seconds})보다 뒤에서 돌아야 한다. 같으면 둘이 경합하고, 앞서면 콜을 취소하지도 못한 채 대기만 끊어 예전 동작으로 돌아간다.
+     */
+    private long outerTimeoutSeconds() {
+        return properties.timeoutSeconds() + OUTER_TIMEOUT_MARGIN_SECONDS;
     }
 
     /**
