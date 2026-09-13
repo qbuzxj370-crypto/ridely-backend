@@ -380,6 +380,8 @@ springdoc:
 
 # ===== 로그 =====
 logging:
+  file:
+    name: logs/ridely.log
   level:
     root: INFO
     kr.ridely: DEBUG
