@@ -5,7 +5,7 @@ import kr.ridely.dto.route.CourseDesignDTO;
 import kr.ridely.dto.route.PassingDangerZoneDTO;
 import kr.ridely.dto.route.RouteCandidatesDTO;
 import kr.ridely.infra.llm.CoachCommentClient;
-import kr.ridely.infra.llm.DangerAlertValidator;
+import kr.ridely.infra.llm.DangerAlertObserver;
 import kr.ridely.infra.llm.LlmCallException;
 import kr.ridely.infra.llm.LlmProperties;
 import kr.ridely.infra.llm.TemplateCommentFactory;
@@ -81,23 +81,44 @@ class CoachCommentResolverTest {
     }
 
     @Test
-    @DisplayName("위험 안내가 구역을 빠뜨리면 톤이 멀쩡해도 템플릿으로 바꾼다")
-    void replacesWhenDangerZoneOmitted() {
-        // 톤 검사만 있으면 이 응답은 통과한다. 안전 검사가 먼저인 이유다
+    @DisplayName("위험 안내가 비어도 LLM 코멘트를 그대로 내보낸다")
+    void keepsCommentEvenWhenDangerAlertBlank() {
+        // 한때 이 경우에 코멘트를 통째로 템플릿으로 바꿨다. 지금은 세기만 한다 -
+        // 라이더에게 위치를 알리는 것은 지도와 GPS 근접 알림의 일이다.
+        // 빈도가 쌓이면 그때 프롬프트를 고칠지 필드를 채울지 정한다
         AtomicInteger calls = new AtomicInteger();
         CoachCommentResolver resolver = resolver(calls, () -> {
             CoachCommentDTO comment = comment("한강 따라 달려보자");
-            comment.setDangerZoneAlert("3km 지점은 살피면서 지나가요");
+            comment.setDangerZoneAlert(null);
             return comment;
         });
 
-        CoachCommentResolver.Resolved resolved =
-                resolve(resolver, List.of(zone("한강대교 남단", "WARNING")));
+        CoachCommentResolver.Resolved resolved = resolve(resolver,
+                List.of(zone("서울 동작구 본동(한강대교남단교차로 부근)", "WARNING")));
 
-        assertThat(resolved.fallback()).isTrue();
-        // 템플릿은 DB 값을 그대로 조립하므로 빠뜨릴 수가 없다
-        assertThat(resolved.comment().getDangerZoneAlert()).contains("한강대교 남단");
+        assertThat(resolved.fallback()).isFalse();
+        assertThat(resolved.comment().getCoachComment()).isEqualTo("한강 따라 달려보자");
         assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("지점명을 줄여 써도 대체하지 않는다")
+    void keepsCommentWhenZoneNameShortened() {
+        // spot_name은 「서울 동작구 본동(한강대교남단교차로 부근)」이고 LLM은
+        // 「한강대교 남단」으로 줄여 쓴다. 2026-09-13에 이 경우를 결함으로 오인해
+        // 멀쩡한 코멘트를 버렸다
+        AtomicInteger calls = new AtomicInteger();
+        CoachCommentResolver resolver = resolver(calls, () -> {
+            CoachCommentDTO comment = comment("한강 따라 달려보자");
+            comment.setDangerZoneAlert("3km 지점 한강대교 남단은 살피면서 지나가요");
+            return comment;
+        });
+
+        CoachCommentResolver.Resolved resolved = resolve(resolver,
+                List.of(zone("서울 동작구 본동(한강대교남단교차로 부근)", "WARNING")));
+
+        assertThat(resolved.fallback()).isFalse();
+        assertThat(resolved.comment().getDangerZoneAlert()).contains("한강대교 남단");
     }
 
     @Test
@@ -156,7 +177,7 @@ class CoachCommentResolverTest {
             }
         };
         return new CoachCommentResolver(client, toneValidator(),
-                new DangerAlertValidator(), new TemplateCommentFactory());
+                new DangerAlertObserver(), new TemplateCommentFactory());
     }
 
     private ToneValidator toneValidator() {
