@@ -95,6 +95,28 @@ spring:
             #    코멘트가 RPD 20에 묶인다. 유료 티어 전환이 근본 해결책이다 — DATA_SOURCES 4장.
             model: gemini-3.5-flash-lite
             temperature: 0.7
+    # Spring AI 자체 재시도를 끈다.
+    #
+    # 기본값(SpringAiRetryProperties)이 대화형 요청에 맞지 않는다. maxAttempts 10,
+    # 백오프 2초에서 시작해 5배씩 늘고 상한이 180초다. 배치용 설정이다.
+    # 우리 목표 p50은 10초이고, 전송 실패는 기다리는 대신 fallback으로 간다.
+    #
+    # ⚠️ 지금 이 값은 실제로는 아무것도 바꾸지 않는다. 2026-09-13 관측에서
+    # 재시도가 애초에 일어나지 않았다 - GoogleGenAiChatModel이 전송 실패를
+    # RuntimeException(Failed to generate content)으로 싸서 올리는데, Spring AI의
+    # 재시도 정책은 TransientAiException만 대상으로 삼기 때문이다.
+    # 로그에 Retry count가 호출당 한 줄씩만 찍힌 것이 근거다.
+    #
+    # 그래도 남겨 둔다. 예외 분류가 바뀌거나 다른 모델로 옮기면 기본값 10이
+    # 그대로 살아나고, 그때는 한 요청이 수 분을 돈다.
+    #
+    # 우리 재시도(ridely.ai.llm.max-retry)와 층이 다르다. 저쪽은 HTTP 전송 실패고
+    # 이쪽은 구조화 출력 JSON이 깨졌을 때이며 즉시 한 번만 다시 부른다.
+    #
+    # maxAttempts는 첫 호출을 포함한 총 횟수다. 1이면 재시도 없음이다.
+    # onClientErrors 기본값이 false라 4xx는 원래 재시도하지 않는다 - 429가 여기 든다.
+    retry:
+      max-attempts: 1
     # pgvector Vector Store — RAG 착수 시 재활성 (pom의 pgvector starter 주석과 세트)
     # vectorstore:
     #   pgvector:
@@ -263,20 +285,35 @@ ridely:
   ai:
     llm:
       primary-provider: gemini          # gemini | groq | ollama | claude
-      # 초과하면 실패시킨다. fallback은 아직 없다
+      # ⚠️ spring.ai.retry는 파일 아래쪽에 따로 있다. 그쪽을 끄지 않으면
+      # 여기 timeout-seconds가 의미를 잃는다 - 매 시도는 끊기지만 재시도가 계속된다.
+      # 두 곳에서 쓴다. GenAiClientConfig가 OkHttp callTimeout으로 걸어 실제 호출을 죽이고,
+      # StructuredLlmCaller가 여기에 5초를 더해 보조 타임아웃을 건다.
+      #
+      # ⚠️ google-genai는 기본 타임아웃이 없다. 1.37.0의 ApiClient가 OkHttp의 기본 10초를
+      # 일부러 끄고(connect·read·write 전부 0) HttpOptions.timeout만 callTimeout에 붙인다.
+      # GenAiClientConfig 빈을 빼면 응답 없는 호출이 무기한 스레드를 붙잡는다.
       #
       # 앞서 관측한 15초 초과는 thinking 지연이 아니라 RPM 한도(5) 초과 재시도였다.
       # Lite로 옮기며 RPM이 20으로 늘었고 thinking도 minimal이라 원래 값으로 되돌린다.
       timeout-seconds: 15
+      # 파싱 실패에만 쓴다. 타임아웃은 이미 15초를 쓴 뒤라 재시도하지 않고 fallback으로 간다
       max-retry: 1
       # 호출별 temperature. spring.ai.google.genai의 전역값(0.7)을 덮어쓴다.
       # 설계는 구조화 출력이라 낮게 잡는다 — 값이 높으면 없는 id를 만들거나 JSON이 깨진다.
       # 코멘트는 자연어라 조금 풀어야 트레이너 톤이 산다.
       design-temperature: 0.2
       comment-temperature: 0.6
-      tone-violation-patterns:          # Coach Ridely 톤 검증
+      # Coach Ridely 톤 검증. 막으려는 것은 존댓말이 아니라 공문서투다.
+      # 프롬프트가 요구하는 어조는 해요체("~해봐요", "~어때요?")이고, 이 값들은
+      # 관공서 안내문 어투다. 입력이 전부 공공데이터(관광공사·도로교통공단·따릉이)라
+      # LLM이 그 주제어를 따라 안내문 어투로 끌려간다 - 특히 안전 경고를 쓸 때.
+      #
+      # "하시기"가 아니라 "시기"인 이유: 앞 글자를 고정하면 "보시기 바랍니다",
+      # "참고해 주시기 바랍니다"가 전부 빠져나간다. 어미 조각을 잡는 패턴이다.
+      tone-violation-patterns:
         - "드립니다"
-        - "하시기 바랍니다"
+        - "시기 바랍니다"
         - "이용자"
     rag:
       enabled: true
@@ -367,6 +404,8 @@ springdoc:
 
 # ===== 로그 =====
 logging:
+  file:
+    name: logs/ridely.log
   level:
     root: INFO
     kr.ridely: DEBUG

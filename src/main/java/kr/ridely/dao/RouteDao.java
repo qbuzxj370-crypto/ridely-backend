@@ -145,7 +145,8 @@ public class RouteDao {
                     ai_highlights,
                     ai_coach_comment,
                     ai_danger_zone_alert,
-                    ai_next_step_suggestion
+                    ai_next_step_suggestion,
+                    llm_provider
                 FROM recommended_route
                 WHERE recommended_route_id = :id
                 """;
@@ -171,6 +172,9 @@ public class RouteDao {
                     dto.setAiCoachComment(rs.getString("ai_coach_comment"));
                     dto.setAiDangerZoneAlert(rs.getString("ai_danger_zone_alert"));
                     dto.setAiNextStepSuggestion(rs.getString("ai_next_step_suggestion"));
+                    // 재열람에서도 FALLBACK 여부가 보여야 한다. 추천 응답에만 실으면
+                    // 저장한 코스를 다시 열었을 때 화면이 대체된 해설을 AI 코치로 표시한다
+                    dto.setAiProvider(rs.getString("llm_provider"));
                     return dto;
                 })
                 .optional();
