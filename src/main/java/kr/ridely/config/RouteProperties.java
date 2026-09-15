@@ -14,7 +14,8 @@ import java.util.List;
  * @param candidatePerKm           거리 1km당 후보 수. 타입별로 다르다
  * @param candidateMinCount        타입별 후보 개수 하한
  * @param candidateMaxCount        타입별 후보 개수 상한. 프롬프트 토큰 예산이다
- * @param cacheTtlHours            추천 결과 캐시 수명. 캐시 도입 시 사용한다
+ * @param cacheTtlMinutes          추천 응답 멱등성 창. 같은 Idempotency-Key로 이 시간 안에 다시 오면
+ *                                 새 코스를 만들지 않고 첫 응답을 그대로 돌려준다
  * @param maxTargetDistanceKm      목표 거리 상한. ROUTE-002 판정에 쓴다
  * @param dangerZoneAlertDistanceM 라이딩 모드 근접 알림 거리. 라이딩 모드 도입 시 사용한다
  * @param avoidDangerLevels        회피 대상 위험 등급. 회피를 켠 사용자에게만 적용된다
@@ -26,7 +27,7 @@ public record RouteProperties(
         CandidatePerKm candidatePerKm,
         int candidateMinCount,
         int candidateMaxCount,
-        int cacheTtlHours,
+        int cacheTtlMinutes,
         double maxTargetDistanceKm,
         int dangerZoneAlertDistanceM,
         List<String> avoidDangerLevels

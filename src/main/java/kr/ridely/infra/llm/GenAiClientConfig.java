@@ -29,6 +29,10 @@ import org.springframework.context.annotation.Profile;
  *
  * ⚠️ 이 빈을 두면서 API 키 주입을 오토컨피그에서 넘겨받았다. Vertex 모드로 전환한다면 {@code Client.builder().project(..).location(..).vertexAI(true)} 분기를 여기에 직접 써야 한다.
  *
+ * <b>{@code proxyBeanMethods = false}인 이유.</b> 이 클래스가 다른 빈보다 일찍 만들어져 CGLIB 프록시를 씌울 시점을 놓치고, 기본값으로 두면 기동할 때마다 그 사실이 경고로 찍힌다({@code Cannot enhance @Configuration bean definition}). 여기 {@code @Bean}은 하나뿐이고 빈끼리 부르는 곳이 없어 프록시가 할 일이 없으므로 명시해서 끈다.
+ *
+ * ⚠️ <b>{@code @Bean}을 하나 더 넣고 서로 부르면 그때는 매번 새 인스턴스가 만들어진다.</b> 프록시가 가로채 주지 않기 때문이다. 그런 호출이 필요해지면 메서드 인자로 주입받아야 한다.
+ *
  * <b>prod에서는 로드하지 않는다.</b> AWS 마이그레이션 이후 prod는 Bedrock(Claude)을 쓴다
  * ({@code spring.ai.model.chat=bedrock-converse}, application-prod.yml). 이 클래스는
  * {@code spring.ai.google.genai.api-key}를 필수로 요구하는 수동 {@code @Bean}이라 —
@@ -36,7 +40,7 @@ import org.springframework.context.annotation.Profile;
  * 안 켜져도 이 빈은 별개로 인스턴스화를 시도한다 — {@code @Profile}로 직접 막아야 한다.
  * 안 막으면 prod 기동이 플레이스홀더 해석 실패로 죽는다 (로컬에서 이미 같은 유형의 장애를 겪었다).
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @Profile("!prod")
 public class GenAiClientConfig {
 
