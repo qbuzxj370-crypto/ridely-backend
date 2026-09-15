@@ -1,0 +1,103 @@
+package kr.ridely.service;
+
+import kr.ridely.common.BusinessException;
+import kr.ridely.common.ErrorCode;
+import kr.ridely.config.MvpAreaProperties;
+import kr.ridely.dao.AccidentZoneSpatialDao;
+import kr.ridely.dao.PoiSpatialDao;
+import kr.ridely.dto.poi.PoiItemDTO;
+import kr.ridely.dto.poi.PoiNearbyResponseDTO;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * 인프라 POI 조회 구현.
+ *
+ * <h3>0건과 서비스 지역 밖을 가른다</h3>
+ *
+ * 둘 다 「아무것도 안 나온다」로 보이지만 사용자가 할 일이 다르다. 지역 안에서 0건이면 지도를 조금 옮기거나 반경을 넓히면 된다. 지역 밖이면 얼마를 움직여도 안 나온다.
+ *
+ * <pre>
+ * 서비스 지역 밖   ROUTE-003     이 지역은 아직 지원하지 않는다
+ * 지역 안 0건      200 + 빈 배열  이 레이어의 평소 상태다
+ * </pre>
+ *
+ * <b>0건을 에러로 내지 않는 근거는 측정이다.</b> 서비스 지역을 450m 격자로 훑어 반경 1km 안의 건수를 세었다(2026-09-15).
+ *
+ * <pre>
+ * 따릉이  3,239건 적재   0건 비율 16.8%
+ * 급수대    185건        0건 비율 84.4%
+ * 수리소     24건        0건 비율 93.8%
+ * </pre>
+ *
+ * 수리소 레이어는 지도를 어디에 놓든 거의 비어 있다. 404로 내면 정상 동작의 대부분이 에러가 된다.
+ *
+ * ⚠️ 같은 이유로 <b>반경 기본값 1,000m는 조밀한 종류에나 맞는다.</b> 수리소·사고다발지는 상한인 5,000m가 사실상 최소값이다. 이 판단은 화면이 종류별로 해야 하므로 프론트 가이드에 적재 건수를 함께 싣는다.
+ */
+@Service
+@RequiredArgsConstructor
+public class PoiServiceImpl implements PoiService {
+
+    /** route_facility 테이블에 있는 시설 종류. 이 값들은 하나의 조회로 묶인다 */
+    private static final Set<String> FACILITY_TYPES =
+            Set.of("WATER", "TOILET", "CERT_CENTER", "AIR_PUMP");
+
+    private static final String TYPE_REPAIR_SHOP = "REPAIR_SHOP";
+    private static final String TYPE_BIKE_STATION = "BIKE_STATION";
+    private static final String TYPE_ACCIDENT_ZONE = "ACCIDENT_ZONE";
+
+    /** types 미지정 시 조회할 전체 종류 */
+    private static final List<String> DEFAULT_TYPES = List.of(
+            "WATER", "TOILET", "CERT_CENTER", "AIR_PUMP",
+            TYPE_REPAIR_SHOP, TYPE_BIKE_STATION, TYPE_ACCIDENT_ZONE);
+
+    /**
+     * 종류마다의 조회 상한.
+     *
+     * 합산 상한이 아니라 종류별 상한이다. 하나로 묶으면 따릉이가 목록을 채워 수리소가 밀려난다 - 적재 건수가 3,239 대 24라 거리순으로만 자르면 희소한 종류가 통째로 사라진다. 레이어를 켠 이유가 그 종류를 보려는 것이므로 그러면 안 된다.
+     */
+    private static final int MAX_PER_TYPE = 100;
+
+    private final PoiSpatialDao poiSpatialDao;
+    private final AccidentZoneSpatialDao accidentZoneSpatialDao;
+    private final MvpAreaProperties mvpArea;
+
+    @Override
+    public PoiNearbyResponseDTO findNearby(double lat, double lng, int radiusM, List<String> types) {
+        if (!mvpArea.contains(lng, lat)) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
+
+        List<String> requested = (types == null || types.isEmpty()) ? DEFAULT_TYPES : types;
+        List<PoiItemDTO> items = new ArrayList<>();
+
+        List<String> facilityTypes = requested.stream().filter(FACILITY_TYPES::contains).toList();
+        if (!facilityTypes.isEmpty()) {
+            items.addAll(poiSpatialDao.findRouteFacilitiesInRadius(
+                    lng, lat, radiusM, facilityTypes, MAX_PER_TYPE));
+        }
+        if (requested.contains(TYPE_REPAIR_SHOP)) {
+            items.addAll(poiSpatialDao.findRepairShopsInRadius(lng, lat, radiusM, MAX_PER_TYPE));
+        }
+        if (requested.contains(TYPE_BIKE_STATION)) {
+            items.addAll(poiSpatialDao.findBikeStationsInRadius(lng, lat, radiusM, MAX_PER_TYPE));
+        }
+        if (requested.contains(TYPE_ACCIDENT_ZONE)) {
+            items.addAll(accidentZoneSpatialDao.findNearby(lng, lat, radiusM, MAX_PER_TYPE));
+        }
+
+        // 종류별로 따로 조회했으므로 합친 뒤 다시 정렬해야 거리순이 된다
+        items.sort(Comparator.comparingInt(PoiItemDTO::getDistanceM));
+
+        return new PoiNearbyResponseDTO(
+                new PoiNearbyResponseDTO.Center(lat, lng),
+                radiusM,
+                items,
+                items.size());
+    }
+}
