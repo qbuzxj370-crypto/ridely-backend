@@ -74,6 +74,17 @@ spring:
   #
   # ADR-003 참조
   ai:
+    # 채팅 모델 공급자를 명시한다.
+    #
+    # ⚠️ 이 줄이 없으면 기동이 실패한다. bedrock-converse 스타터가 들어오면서
+    #    ChatModel 후보가 둘이 됐고, 선택자가 없으면 두 오토컨피그가 모두 켜진다.
+    #      No qualifying bean of type ChatModel: expected single matching bean but found 2:
+    #        bedrockProxyChatModel, googleGenAiChatModel
+    #
+    #    prod는 application-prod.yml이 bedrock-converse로 덮는다.
+    #    여기 기본값이 없으면 prod만 뜨고 로컬·테스트는 전부 죽는다.
+    model:
+      chat: google-genai
     google:
       genai:
         chat:
