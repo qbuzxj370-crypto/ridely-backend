@@ -49,17 +49,25 @@ public class RouteController {
 
                     우선순위 셋의 합은 정확히 1이어야 한다. 오차를 허용하지 않으므로 슬라이더 셋을 쓰는 화면은 마지막 값을 `1 - a - b`로 계산해 보낸다. 3등분이면 0.33/0.33/0.34다. 같은 규칙이 `/users/me/settings`의 기본 가중치에도 적용된다.
 
+                    응답이 10초 이상 걸린다. 네트워크 재시도가 AI를 두 번 부르지 않도록 Idempotency-Key 헤더에 요청마다 새 UUID를 담고, **재시도할 때만 같은 값을 다시 보낸다.** 20분 안에 같은 키가 오면 새 코스를 만들지 않고 첫 응답을 그대로 돌려준다. 헤더가 없어도 동작하며 그때는 매번 새로 만든다.
+
+                    다시 추천받고 싶으면 **새 UUID**를 보낸다. 같은 값을 보내면 방금 본 코스가 다시 온다.
+
                     - 우선순위 합이 1이 아님: ROUTE-001
                     - 목표 거리가 직선거리보다 짧음: ROUTE-002
                     - 서비스 지역(한강 서울 구간) 밖: ROUTE-003
+                    - 주변에 후보가 없음: ROUTE-006
                     """)
     @PostMapping("/recommend")
     public ApiResponse<RouteRecommendResponseDTO> recommend(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "비회원 사고다발지 회피 요청. 회원은 저장된 설정을 따르므로 무시된다")
             @RequestHeader(value = "X-Ridely-Avoid-Danger-Zones", required = false) Boolean avoidHeader,
+            @Parameter(description = "재시도 식별용 UUID. 요청마다 새로 만들고 재시도할 때만 같은 값을 보낸다")
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody RouteRecommendRequestDTO request) {
-        return ApiResponse.ok(routeRecommendService.recommend(request, userId, avoidHeader));
+        return ApiResponse.ok(
+                routeRecommendService.recommend(request, userId, avoidHeader, idempotencyKey));
     }
 
     @Operation(summary = "추천 코스 다시 보기",

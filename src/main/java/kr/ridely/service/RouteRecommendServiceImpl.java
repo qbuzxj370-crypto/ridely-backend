@@ -86,6 +86,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
     private final LlmProperties llmProperties;
     private final CourseDesignResolver courseDesignResolver;
     private final CoachCommentResolver coachCommentResolver;
+    private final RecommendationReplayStore replayStore;
 
     public RouteRecommendServiceImpl(InfraCandidateCollector candidateCollector,
                                      CourseDesignResolver courseDesignResolver,
@@ -99,7 +100,9 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
                                      AccidentZoneSpatialDao accidentZoneSpatialDao,
                                      UserSettingsService userSettingsService,
                                      RouteProperties routeProperties,
-                                     LlmProperties llmProperties) {
+                                     LlmProperties llmProperties,
+                                     RecommendationReplayStore replayStore) {
+        this.replayStore = replayStore;
         this.routeProperties = routeProperties;
         this.nationalBikeRouteDao = nationalBikeRouteDao;
         this.accidentZoneSpatialDao = accidentZoneSpatialDao;
@@ -117,7 +120,7 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
 
     @Override
     public RouteRecommendResponseDTO recommend(RouteRecommendRequestDTO request, Long userId,
-                                               Boolean avoidHeader) {
+                                               Boolean avoidHeader, String idempotencyKey) {
         long startedAt = System.currentTimeMillis();
 
         BigDecimal convenience = orDefault(request.getPriorityConvenience(), DEFAULT_CONVENIENCE);
@@ -137,6 +140,16 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         verifyPrioritySum(convenience, exercise, scenery);
         verifyInServiceArea(startLng, startLat, endLng, endLat);
         verifyReachable(startLng, startLat, endLng, endLat, targetDistanceKm);
+
+        // 검증 뒤에 본다. 앞에 두면 잘못된 요청이 저장소를 뒤지고, 무엇보다
+        // 400으로 끝날 요청에 키를 쓰면 그 키가 정상 재시도에서 재사용될 수 없다
+        Optional<RouteRecommendResponseDTO> replayed =
+                replayStore.replay(idempotencyKey, userId, request);
+        if (replayed.isPresent()) {
+            log.info("같은 요청이 다시 왔다. 첫 응답을 그대로 돌려준다: recommendedRouteId={}",
+                    replayed.get().getRecommendedRouteId());
+            return replayed.get();
+        }
 
         boolean circular = endLng == null || endLat == null;
         double straightLineKm = circular ? 0
@@ -199,6 +212,8 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
         // 저장된 형상으로 바꿔 넣는다. ORS 원본은 3차원이라 그대로 두면
         // POST 응답과 GET 재조회 결과의 좌표 차원이 달라진다
         response.setRouteGeoJson(saved.routeGeoJson());
+
+        replayStore.remember(idempotencyKey, userId, request, response, avoidGeometry != null);
         return response;
     }
 
