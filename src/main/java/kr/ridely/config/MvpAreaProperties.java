@@ -23,4 +23,16 @@ public record MvpAreaProperties(
         double minLng,
         double maxLng
 ) {
+
+    /**
+     * 좌표가 서비스 범위 안인지 본다.
+     *
+     * 추천은 출발지·도착지를, POI 조회는 지도 중심을 이 기준으로 가른다. 두 곳이 같은 판정을 써야 한다 - 추천은 되는데 주변 시설은 안 나오거나 그 반대가 되면 사용자가 원인을 짐작할 수 없다.
+     *
+     * ⚠️ <b>사각형이라 실제 서비스 구간보다 넓다.</b> 한강은 띠인데 경계 상자는 동서 31km · 남북 12.2km라 네 모서리가 내륙으로 남는다. 범위 안이어도 주변에 아무것도 없는 지점이 있다.
+     */
+    public boolean contains(double lng, double lat) {
+        return lng >= minLng && lng <= maxLng
+                && lat >= minLat && lat <= maxLat;
+    }
 }
