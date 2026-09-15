@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.ridely.dao.RecommendationCacheDao">
+
+    <!--
+        만료되지 않은 응답만 돌려준다.
+
+        만료 판정을 여기서 하는 이유는 애플리케이션 시계를 믿지 않기 위해서다.
+        Docker VM 시계가 호스트 절전 후 튀어 테스트가 깨진 적이 있다.
+        저장 쪽도 NOW()를 쓰므로 기준이 하나로 유지된다.
+
+        JSONB 컬럼을 문자열로 받는다. 구조를 여기서 풀 이유가 없다 -
+        저장할 때 통째로 직렬화했으니 읽을 때도 통째로 역직렬화한다.
+    -->
+    <select id="selectValidPayload" resultType="string">
+        SELECT response_payload::text
+          FROM recommendation_cache
+         WHERE cache_key = #{cacheKey}
+           AND expires_at &gt; NOW()
+    </select>
+
+    <!--
+        같은 키가 있으면 덮어쓴다.
+
+        만료된 행이 저절로 정리되게 하려는 것이다. 만료 뒤 같은 키가 다시 오는 일은
+        드물지만, 그때 INSERT가 UNIQUE 제약에 걸리면 멀쩡한 요청이 500으로 죽는다.
+
+        ⚠️ CAST(#{payload} AS jsonb)를 쓴다. ::jsonb 표기는 MyBatis의 이름 붙은
+        파라미터 파서가 :jsonb를 파라미터로 오인한다.
+
+        expires_at을 DB가 계산한다. 위 select와 같은 시계를 쓰기 위해서다.
+        INTERVAL에 파라미터를 직접 넣을 수 없어 곱셈으로 만든다.
+    -->
+    <insert id="upsert">
+        INSERT INTO recommendation_cache (cache_key, response_payload, expires_at)
+        VALUES (#{cacheKey},
+                CAST(#{payload} AS jsonb),
+                NOW() + (#{ttlMinutes} * INTERVAL '1 minute'))
+        ON CONFLICT (cache_key) DO UPDATE
+           SET response_payload = EXCLUDED.response_payload,
+               expires_at       = EXCLUDED.expires_at,
+               created_at       = NOW()
+    </insert>
+
+</mapper>
