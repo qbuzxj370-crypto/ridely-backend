@@ -1,0 +1,16 @@
+[Unit]
+Description=Ridely Spring Boot App
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ridely
+EnvironmentFile=/opt/ridely/.env
+Environment=SPRING_PROFILES_ACTIVE=prod
+ExecStart=/usr/bin/java -jar /opt/ridely/app.jar
+Restart=on-failure
+RestartSec=5
+User=ridely
+
+[Install]
+WantedBy=multi-user.target

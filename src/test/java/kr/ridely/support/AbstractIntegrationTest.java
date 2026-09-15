@@ -21,6 +21,10 @@ import org.testcontainers.utility.DockerImageName;
  * (테스트마다 띄우면 수십 초씩 소요)
  */
 @SpringBootTest(properties = {
+        // AWS 마이그레이션(Bedrock 추가) 이후 spring.ai.model.chat을 명시하지 않으면
+        // googleGenAiChatModel·bedrockProxyChatModel이 동시에 떠서 ChatClientAutoConfiguration이
+        // "2개 빈 발견"으로 컨텍스트 로딩에 실패한다 (application-local.yml에 있던 것과 같은 원인).
+        "spring.ai.model.chat=google-genai",
         // Spring AI는 기동 시 API 키를 요구한다. 이 테스트는 LLM을 호출하지 않으므로 컨텍스트 로딩만 통과하도록 더미 값을 넣는다.
         "spring.ai.google.genai.api-key=test-dummy-key",
         // 운영 설정에는 기본값이 없다(공개 저장소라 기본값을 두지 않는다).
