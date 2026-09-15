@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 /**
  * google-genai 클라이언트를 직접 만든다. 전송 계층 타임아웃을 걸기 위해서다.
@@ -27,8 +28,16 @@ import org.springframework.context.annotation.Configuration;
  * <b>StructuredLlmCaller의 orTimeout과 역할이 다르다.</b> 이쪽은 발동하면 OkHttp가 콜을 취소하고 소켓을 닫아 스레드와 RPM을 회수한다. orTimeout은 CompletableFuture만 포기할 뿐 호출은 계속 돈다. 그래서 orTimeout을 더 뒤에 두어 보조 타임아웃으로 쓴다 - 같은 값이면 둘이 경합해 어느 예외가 올지 알 수 없다.
  *
  * ⚠️ 이 빈을 두면서 API 키 주입을 오토컨피그에서 넘겨받았다. Vertex 모드로 전환한다면 {@code Client.builder().project(..).location(..).vertexAI(true)} 분기를 여기에 직접 써야 한다.
+ *
+ * <b>prod에서는 로드하지 않는다.</b> AWS 마이그레이션 이후 prod는 Bedrock(Claude)을 쓴다
+ * ({@code spring.ai.model.chat=bedrock-converse}, application-prod.yml). 이 클래스는
+ * {@code spring.ai.google.genai.api-key}를 필수로 요구하는 수동 {@code @Bean}이라 —
+ * Spring AI의 {@code spring.ai.model.chat} 셀렉터로 GoogleGenAiChatAutoConfiguration이
+ * 안 켜져도 이 빈은 별개로 인스턴스화를 시도한다 — {@code @Profile}로 직접 막아야 한다.
+ * 안 막으면 prod 기동이 플레이스홀더 해석 실패로 죽는다 (로컬에서 이미 같은 유형의 장애를 겪었다).
  */
 @Configuration
+@Profile("!prod")
 public class GenAiClientConfig {
 
     private static final Logger log = LoggerFactory.getLogger(GenAiClientConfig.class);
