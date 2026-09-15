@@ -238,6 +238,38 @@ GET /api/v1/tours/nearby?lat=37.5434&lng=126.8997&radiusM=2000&contentTypeIds=12
 - 응답은 **평면 구조**다. `summary`·`ai` 중첩이 없고 `aiTitle`·`aiCoachComment`처럼 접두사가 붙는다. 경로 형상은 `routeGeoJson` **문자열**이라 `JSON.parse`가 필요하다.
 - `avoidDangerZonesApplied: true`여도 `passingDangerZones`는 비지 않는다. 주의 등급은 그대로 지나가기 때문이다. **"안전 경로" 표시를 붙이면 안 된다.**
 
+#### `Idempotency-Key` — 재시도가 AI를 두 번 부르지 않게
+
+`POST /routes/recommend`는 응답에 10초 안팎이 걸리고 그 한 번이 LLM을 두 번 부른다. 모바일에서 전파가 끊겨 재시도하면 서버는 그것이 재시도인지 새 요청인지 모른다. 그래서 화면이 알려 준다.
+
+**요청마다 새 UUID를 만들고, 재시도할 때만 같은 값을 다시 보낸다.**
+
+```js
+// 요청을 만들 때 한 번
+const key = crypto.randomUUID();
+
+// 이 요청의 재시도는 전부 같은 key를 쓴다
+fetch('/api/v1/routes/recommend', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+  body: JSON.stringify(request),
+});
+```
+
+20분 안에 같은 키가 오면 새 코스를 만들지 않고 첫 응답을 그대로 돌려준다. 헤더가 없어도 동작하며 그때는 매번 새로 만든다.
+
+⚠️ **다시 추천받기 버튼은 새 UUID를 만들어야 한다.** 같은 값을 보내면 방금 본 코스가 다시 온다. 요청 조건이 아니라 키로만 판정하므로 출발지·거리를 그대로 둔 채 눌러도 새 키면 새 코스가 나온다.
+
+**저장되지 않는 응답이 있다.** 요청대로 처리되지 않은 것을 재시도로 다시 받느니 새로 시도하는 편이 낫기 때문이다. 화면이 따로 할 일은 없고, **재시도가 빠르지 않다고 해서 고장은 아니라는 뜻**이다.
+
+| 응답 | 재시도하면 |
+|---|---|
+| `aiProvider: "FALLBACK"` | 새로 만든다. LLM이 성공할 기회를 다시 준다 |
+| 회피를 켰는데 `avoidDangerZonesApplied: false` | 새로 만든다. 경유지 조합이 매번 달라 다음에 될 수 있다 |
+| 실패(4xx·5xx) | 새로 만든다. 실패는 저장하지 않는다 |
+
+⚠️ **키를 잘못 재사용하면 마지막 요청이 이긴다.** 같은 키에 다른 본문을 보내면 서버는 새 코스를 만들고 저장값을 그것으로 덮어쓴다. 에러를 내지 않으므로 **화면이 키를 요청 하나에 묶어 관리하지 않으면 조용히 어긋난다.**
+
 #### `aiProvider` — AI 해설인지 규칙 응답인지
 
 `ai`로 시작하는 필드를 무엇이 만들었는지 알린다. 대체가 아니면 사용 중인 LLM 공급자 이름이 오고 지금은 `gemini`다.
