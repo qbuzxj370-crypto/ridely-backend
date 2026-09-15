@@ -17,7 +17,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 추천 응답 재현 단위 테스트.
+ * 추천 응답 멱등성 단위 테스트.
  *
  * DB 없이 분기만 본다. {@link RecommendationCacheDao}는 인메모리 맵으로 흉내 낸다 - 목 라이브러리를 들이지 않고 {@code AvoidSettingResolutionTest}가 {@code UserSettingsDao}에 쓴 방식과 맞춘다.
  *
@@ -109,7 +109,7 @@ class RecommendationReplayStoreTest {
     @DisplayName("요청 DTO에 equals가 없어도 같은 내용을 알아본다")
     void recognisesEqualRequestWithoutEquals() {
         // DTO 규약이 class + Lombok(@Getter @Setter @NoArgsConstructor @AllArgsConstructor)이라
-        // equals가 없다. 동일성으로 비교하면 영영 false가 되어 재현이 아예 안 된다
+        // equals가 없다. 동일성으로 비교하면 영영 false가 되어 저장해 둔 응답을 못 꺼낸다
         store.remember(CLIENT_KEY, USER_ID, request(), response("gemini", true), false);
 
         assertThat(store.replay(CLIENT_KEY, USER_ID, request())).isPresent();

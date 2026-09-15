@@ -20,7 +20,7 @@ import java.util.Optional;
  *
  * <b>노리는 것은 네트워크 재시도다.</b> 추천 응답이 10초라 모바일에서 실재하고, 그 한 번이 LLM을 2~4회 더 쓴다. 「앱을 껐다 켜고 다시 요청」은 새 키가 나가 걸리지 않는데 그게 맞다 - 다시 켜고 요청한 것은 새 코스를 원하는 것이다.
  *
- * 서비스에서 떼어 낸 이유는 테스트다. {@code RouteRecommendServiceImpl}은 생성자 인자가 열다섯이라 이 분기만 보려 해도 전체를 세워야 한다. 여기 의존은 셋이라 익명 클래스로 흉내 낼 수 있다.
+ * 서비스에서 떼어 낸 이유는 테스트다. {@code RouteRecommendServiceImpl}은 생성자 인자가 열넷이라 이 분기만 보려 해도 전체를 세워야 한다. 여기 의존은 셋이라 익명 클래스로 흉내 낼 수 있다.
  */
 @Component
 public class RecommendationReplayStore {
@@ -67,7 +67,7 @@ public class RecommendationReplayStore {
             }
             return Optional.ofNullable(stored.response());
         } catch (JsonProcessingException e) {
-            // 저장 형식이 바뀌었거나 깨진 것이다. 재현에 실패해도 추천은 계속돼야 한다
+            // 저장 형식이 바뀌었거나 깨진 것이다. 꺼내지 못해도 추천은 계속돼야 한다
             log.warn("저장된 응답을 읽지 못했다. 새로 만든다: {}", e.getMessage());
             return Optional.empty();
         }
@@ -116,7 +116,7 @@ public class RecommendationReplayStore {
     /**
      * 두 요청이 같은지 본다.
      *
-     * DTO 규약이 class + Lombok(@Getter @Setter @NoArgsConstructor @AllArgsConstructor)이라 {@code equals}가 없다. 그대로 비교하면 동일성 비교가 되어 영영 false이고, 그러면 재현이 아예 안 된다. 같은 클래스를 같은 매퍼로 직렬화하면 필드 순서가 같으므로 문자열로 견준다.
+     * DTO 규약이 class + Lombok(@Getter @Setter @NoArgsConstructor @AllArgsConstructor)이라 {@code equals}가 없다. 그대로 비교하면 동일성 비교가 되어 영영 false이고, 그러면 저장해 둔 응답을 영영 못 꺼낸다. 같은 클래스를 같은 매퍼로 직렬화하면 필드 순서가 같으므로 문자열로 견준다.
      */
     private boolean sameRequest(RouteRecommendRequestDTO a, RouteRecommendRequestDTO b)
             throws JsonProcessingException {
