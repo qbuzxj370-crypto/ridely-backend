@@ -11,9 +11,13 @@ import java.util.List;
  *
  * PostGIS 연산자(ST_MakeLine·ST_DWithin·ST_Distance)를 사용하므로 JdbcClient를 쓴다 (ADR-002).
  *
- * 용도는 코스 추천의 후보 수집이다. TourSpatialDao가 "한 점 주변"을 보는 것과 달리
- * 여기서는 출발지~도착지를 잇는 축(corridor) 주변을 본다. 라이딩 경로는 선이라
- * 출발점 반경만 보면 도착지 쪽 시설이 통째로 빠진다.
+ * 접근 방식이 둘이다. 부르는 쪽이 원하는 것이 달라서다.
+ *
+ *   축(corridor) 주변    코스 추천의 후보 수집. findRouteFacilities 등
+ *   한 점 반경           지도 레이어 조회. findRouteFacilitiesInRadius 등
+ *
+ * 축 쪽은 출발지~도착지를 잇는 선을 기준으로 본다. 라이딩 경로는 선이라 출발점 반경만
+ * 보면 도착지 쪽 시설이 통째로 빠진다. 반경 쪽은 TourSpatialDao와 같은 형태다.
  *
  * 반환은 PoiItemDTO 하나로 통일한다. 테이블이 달라도 LLM 입력에서는
  * "이름·좌표·거리"만 쓰이고, 타입별 필드는 코멘트 생성에 곁들이는 정도다.
@@ -79,10 +83,140 @@ public class PoiSpatialDao {
             LIMIT :limit
             """;
 
+    /*
+     * [지도 레이어용 반경 조회]
+     *
+     * 위 축 조회와 목적이 반대다. 축 쪽은 목표 거리를 채울 원거리 후보를 일부러 섞지만,
+     * 지도는 화면 중심 반경 안의 것을 가까운 순으로 보여줘야 한다. PICK_BOTH_ENDS를
+     * 그대로 쓰면 가까운 시설을 건너뛰고 먼 것을 먼저 찍는다.
+     *
+     * 기준 도형이 점 하나라 CORRIDOR_CTE의 hasEnd 분기도 필요 없다.
+     */
+    private static final String CENTER_CTE = """
+            WITH center AS (
+                SELECT ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography AS g
+            )
+            """;
+
+    /** 가까운 순. PostgreSQL은 SELECT 별칭을 ORDER BY에서 쓸 수 있다 */
+    private static final String NEAREST_FIRST = """
+            ORDER BY distance_m
+            LIMIT :limit
+            """;
+
     private final JdbcClient jdbcClient;
 
     public PoiSpatialDao(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
+    }
+
+    /**
+     * 자전거길 주변시설을 한 점 반경에서 가까운 순으로 조회한다.
+     *
+     * @param facilityTypes WATER·TOILET·CERT_CENTER·AIR_PUMP 가운데 조회할 것들
+     */
+    public List<PoiItemDTO> findRouteFacilitiesInRadius(double lng, double lat, int radiusM,
+                                                        List<String> facilityTypes, int limit) {
+        String sql = CENTER_CTE + """
+                SELECT
+                    f.route_facility_id AS id,
+                    f.facility_name     AS name,
+                    f.facility_type,
+                    ST_Y(f.geom) AS lat,
+                    ST_X(f.geom) AS lng,
+                    ROUND(ST_Distance(f.geom::geography, c.g))::int AS distance_m
+                FROM route_facility f, center c
+                WHERE ST_DWithin(f.geom::geography, c.g, :radiusM)
+                  AND f.facility_type = ANY(:facilityTypes)
+                """ + NEAREST_FIRST;
+
+        return radiusQuery(sql, lng, lat, radiusM, limit)
+                .param("facilityTypes", facilityTypes.toArray(new String[0]))
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = base(TYPE_ROUTE_FACILITY, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"),
+                            rs.getInt("distance_m"));
+                    dto.setFacilityType(rs.getString("facility_type"));
+                    return dto;
+                })
+                .list();
+    }
+
+    /**
+     * 자전거 수리센터를 한 점 반경에서 가까운 순으로 조회한다.
+     *
+     * ⚠️ 적재된 수리소가 서울 한강 구간 전체에 24건뿐이다. 반경 1km로는 격자의 93.8%에서
+     * 0건이 나온다(2026-09-15 측정). 0건은 오류가 아니라 이 레이어의 평소 상태다.
+     */
+    public List<PoiItemDTO> findRepairShopsInRadius(double lng, double lat, int radiusM, int limit) {
+        String sql = CENTER_CTE + """
+                SELECT
+                    s.repair_shop_id AS id,
+                    s.shop_name      AS name,
+                    s.addr,
+                    s.tel,
+                    s.is_free,
+                    s.operating_hours,
+                    ST_Y(s.geom) AS lat,
+                    ST_X(s.geom) AS lng,
+                    ROUND(ST_Distance(s.geom::geography, c.g))::int AS distance_m
+                FROM repair_shop s, center c
+                WHERE ST_DWithin(s.geom::geography, c.g, :radiusM)
+                """ + NEAREST_FIRST;
+
+        return radiusQuery(sql, lng, lat, radiusM, limit)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = base(TYPE_REPAIR_SHOP, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"),
+                            rs.getInt("distance_m"));
+                    dto.setAddr(rs.getString("addr"));
+                    dto.setTel(rs.getString("tel"));
+                    dto.setIsFree(rs.getBoolean("is_free"));
+                    dto.setOperatingHours(rs.getString("operating_hours"));
+                    return dto;
+                })
+                .list();
+    }
+
+    /**
+     * 따릉이 대여소를 한 점 반경에서 가까운 순으로 조회한다.
+     *
+     * 폐쇄된 대여소는 제외한다. 이유는 {@link #findBikeStations} 참조.
+     */
+    public List<PoiItemDTO> findBikeStationsInRadius(double lng, double lat, int radiusM, int limit) {
+        String sql = CENTER_CTE + """
+                SELECT
+                    b.bike_station_id AS id,
+                    b.station_name    AS name,
+                    b.rack_count,
+                    b.is_active,
+                    ST_Y(b.geom) AS lat,
+                    ST_X(b.geom) AS lng,
+                    ROUND(ST_Distance(b.geom::geography, c.g))::int AS distance_m
+                FROM bike_station b, center c
+                WHERE ST_DWithin(b.geom::geography, c.g, :radiusM)
+                  AND b.is_active
+                """ + NEAREST_FIRST;
+
+        return radiusQuery(sql, lng, lat, radiusM, limit)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = base(TYPE_BIKE_STATION, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"),
+                            rs.getInt("distance_m"));
+                    dto.setRackCount((Integer) rs.getObject("rack_count"));
+                    dto.setIsActive(rs.getBoolean("is_active"));
+                    return dto;
+                })
+                .list();
+    }
+
+    private JdbcClient.StatementSpec radiusQuery(String sql, double lng, double lat,
+                                                 int radiusM, int limit) {
+        return jdbcClient.sql(sql)
+                .param("lng", lng)
+                .param("lat", lat)
+                .param("radiusM", radiusM)
+                .param("limit", limit);
     }
 
     /**
