@@ -46,6 +46,14 @@ bin/
 application-local-secret.yml
 !.env.example
 
+# Terraform — state 파일에 db_password 등이 평문으로 남는다 (Secrets Manager 미사용 결정, iam.tf 참조).
+# .terraform.lock.hcl은 반대로 커밋 대상 (프로바이더 버전 고정) — 여기서 제외하지 않는다.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+infra/terraform/*.tfplan
+
 # 로컬 DB 크리덴셜 포함 — 커밋 금지 (.env로 관리)
 src/main/resources/application-local.yml
 

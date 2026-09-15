@@ -1,0 +1,35 @@
+# 운영(prod) 오버라이드. EC2 systemd 서비스에서 SPRING_PROFILES_ACTIVE=prod로 기동한다.
+#
+# LLM: Bedrock(Claude)으로 전환. spring.ai.model.chat이 Spring AI 1.1.x의 공식 멀티모델
+# 셀렉터라 GoogleGenAiChatAutoConfiguration(matchIfMissing=true)이 자동으로 꺼지고
+# BedrockConverseProxyChatAutoConfiguration만 켜진다 — spring.autoconfigure.exclude 불필요.
+# (GenAiClientConfig는 이 셀렉터와 무관한 수동 @Bean이라 별도로 @Profile("!prod")로 막아뒀다.)
+#
+# AWS 자격증명은 여기 없다 — EC2 인스턴스 역할(IAM)의 기본 자격증명 체인을 그대로 탄다.
+spring:
+  ai:
+    model:
+      chat: bedrock-converse
+    bedrock:
+      aws:
+        region: ${BEDROCK_REGION:us-east-1}
+        # google-genai와 달리 Bedrock 모듈은 호출별 타임아웃을 프로퍼티로 직접 지원한다
+        # (spring-ai#4103류 이슈 없음 — GenAiClientConfig 같은 수동 클라이언트 빈 불필요).
+        timeout: 15s
+      converse:
+        chat:
+          options:
+            # us.* 접두는 크로스 리전 추론 프로파일 ID (온디맨드 처리량은 베어 모델 ID 미지원).
+            model: ${BEDROCK_MODEL_ID:us.anthropic.claude-sonnet-5}
+    retry:
+      max-attempts: 1
+
+ridely:
+  cors:
+    # 커스텀 도메인이 없어 CloudFront 기본 도메인(https://<distribution>.cloudfront.net)을 그대로 쓴다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+server:
+  # ALB 없이 CloudFront가 붙지만, 배포 시 systemctl restart로 인스턴스가 내려가는 동안
+  # 처리 중인 요청을 안전하게 끝내기 위해 유지한다.
+  shutdown: graceful

@@ -262,6 +262,13 @@
             </exclusions>
         </dependency>
 
+        <!-- AWS 마이그레이션: prod 프로파일 전용 LLM. 로컬은 google-genai(Gemini) 유지, 코드 변경 없이
+             ChatClient 추상화로 프로파일별 공급자만 분기한다 (ADR-003 참조). -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+        </dependency>
+
         <!-- 임베딩 (text-embedding-004, 768차원) 배포 단계에서 활성화-->
         <!--
         <dependency>
