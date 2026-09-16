@@ -2,6 +2,7 @@ package kr.ridely.service;
 
 import kr.ridely.common.BusinessException;
 import kr.ridely.common.ErrorCode;
+import kr.ridely.common.PasswordPolicy;
 import kr.ridely.common.util.TokenHasher;
 import kr.ridely.config.JwtProperties;
 import kr.ridely.config.JwtTokenProvider;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.regex.Pattern;
 
 /**
  * 회원가입 구현.
@@ -36,10 +36,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    /** 비밀번호 정책: 8~30자, 영문·숫자·특수문자 각 1자 이상 (위반 시 AUTH-102) */
-    private static final Pattern PASSWORD_POLICY =
-            Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,30}$");
-
     /** 계정 상태 — 이 값이 아니면 로그인할 수 없다 */
     private static final String STATUS_ACTIVE = "ACTIVE";
 
@@ -52,8 +48,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public UserResponseDTO signup(SignupRequestDTO request) {
 
-        // 1. 비밀번호 정책 검증 → AUTH-102
-        if (!PASSWORD_POLICY.matcher(request.getPassword()).matches()) {
+        // 1. 비밀번호 정책 검증 → AUTH-102 (규칙은 비밀번호 변경과 공유한다)
+        if (!PasswordPolicy.isValid(request.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_102);
         }
 
