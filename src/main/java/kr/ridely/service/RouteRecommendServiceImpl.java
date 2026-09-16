@@ -454,19 +454,14 @@ public class RouteRecommendServiceImpl implements RouteRecommendService {
      * 밖이면 후보가 한 건도 안 잡히고, 그 상태로 LLM을 부르면 토큰만 쓰고 실패한다. 외부 호출 전에 막는다.
      */
     private void verifyInServiceArea(double startLng, double startLat, Double endLng, Double endLat) {
-        if (!inMvpArea(startLng, startLat)) {
+        if (!mvpArea.contains(startLng, startLat)) {
             log.warn("출발지가 서비스 지역 밖이다: {}, {}", startLat, startLng);
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
-        if (endLng != null && endLat != null && !inMvpArea(endLng, endLat)) {
+        if (endLng != null && endLat != null && !mvpArea.contains(endLng, endLat)) {
             log.warn("도착지가 서비스 지역 밖이다: {}, {}", endLat, endLng);
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
-    }
-
-    private boolean inMvpArea(double lng, double lat) {
-        return lng >= mvpArea.minLng() && lng <= mvpArea.maxLng()
-                && lat >= mvpArea.minLat() && lat <= mvpArea.maxLat();
     }
 
     /**

@@ -1,5 +1,6 @@
 package kr.ridely.dao;
 
+import kr.ridely.dto.poi.PoiItemDTO;
 import kr.ridely.dto.route.PassingDangerZoneDTO;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -17,10 +18,62 @@ import java.util.Optional;
 @Repository
 public class AccidentZoneSpatialDao {
 
+    /** PoiItemDTO.type 값 */
+    private static final String TYPE_ACCIDENT_ZONE = "ACCIDENT_ZONE";
+
     private final JdbcClient jdbcClient;
 
     public AccidentZoneSpatialDao(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
+    }
+
+    /**
+     * 사고다발지역을 한 점 반경에서 가까운 순으로 조회한다. 지도 레이어용이다.
+     *
+     * <b>거리는 폴리곤이 아니라 중심점으로 잰다.</b> 폴리곤 경계까지의 거리로 재면 구역 안에 서 있을 때 0m가 되어 정렬이 무너진다. 화면에 찍을 마커도 중심점이라, 경계로 재면 거리를 잰 지점과 마커 위치가 어긋난다.
+     *
+     * ⚠️ <b>등급으로 거르지 않는다.</b> {@link #findAvoidGeometry}는 회피 대상만 고르지만 여기는 보여주는 것이 목적이라 주의 등급도 지도에 나와야 한다. 무엇을 숨길지는 화면이 정한다.
+     *
+     * 최신 연도만 본다. 이유는 {@link #findPassing} 참조.
+     */
+    public List<PoiItemDTO> findNearby(double lng, double lat, int radiusM, int limit) {
+        String sql = """
+                WITH center AS (
+                    SELECT ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography AS g
+                )
+                SELECT
+                    a.accident_zone_id AS id,
+                    a.spot_name        AS name,
+                    a.danger_level,
+                    a.occurrence_count,
+                    a.death_count,
+                    ST_Y(a.center_geom) AS lat,
+                    ST_X(a.center_geom) AS lng,
+                    ST_AsGeoJSON(a.polygon_geom) AS polygon_geo_json,
+                    ROUND(ST_Distance(a.center_geom::geography, c.g))::int AS distance_m
+                FROM accident_zone a, center c
+                WHERE a.data_year = (SELECT MAX(data_year) FROM accident_zone)
+                  AND ST_DWithin(a.center_geom::geography, c.g, :radiusM)
+                ORDER BY distance_m
+                LIMIT :limit
+                """;
+
+        return jdbcClient.sql(sql)
+                .param("lng", lng)
+                .param("lat", lat)
+                .param("radiusM", radiusM)
+                .param("limit", limit)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = new PoiItemDTO(TYPE_ACCIDENT_ZONE, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"),
+                            rs.getInt("distance_m"));
+                    dto.setDangerLevel(rs.getString("danger_level"));
+                    dto.setOccurrenceCount(rs.getInt("occurrence_count"));
+                    dto.setDeathCount(rs.getInt("death_count"));
+                    dto.setPolygonGeoJson(rs.getString("polygon_geo_json"));
+                    return dto;
+                })
+                .list();
     }
 
     /**
