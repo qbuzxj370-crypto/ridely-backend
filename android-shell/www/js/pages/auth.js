@@ -8,6 +8,8 @@ export function render(container, params) {
   const title = container.querySelector('#auth-title');
   const errorBox = container.querySelector('#auth-error');
   const nicknameField = container.querySelector('#auth-nickname-field');
+  const consentField = container.querySelector('#auth-location-consent-field');
+  const consentCheckbox = container.querySelector('#auth-location-consent');
   const submitBtn = container.querySelector('#auth-submit');
   const toggleBtn = container.querySelector('#auth-toggle');
 
@@ -16,6 +18,7 @@ export function render(container, params) {
     const isSignup = mode === 'signup';
     title.textContent = isSignup ? '회원가입' : '로그인';
     nicknameField.style.display = isSignup ? 'block' : 'none';
+    consentField.style.display = isSignup ? 'block' : 'none';
     submitBtn.textContent = isSignup ? '가입하기' : '로그인';
     toggleBtn.textContent = isSignup ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입';
     errorBox.innerHTML = '';
@@ -33,6 +36,14 @@ export function render(container, params) {
     const loginId = container.querySelector('#auth-loginId').value.trim();
     const password = container.querySelector('#auth-password').value;
     errorBox.innerHTML = '';
+
+    // 위치정보 수집 동의는 서버로 전송하지 않는다 — 순전히 클라이언트에서 GPS를 쓰기 전에
+    // 사용자에게 고지하고 확인받는 게 목적이라, 이 화면(가입)에서만 막으면 된다.
+    if (mode === 'signup' && !consentCheckbox.checked) {
+      errorBox.innerHTML = '<div class="error-banner">위치정보 수집·이용에 동의해야 가입할 수 있어요</div>';
+      submitBtn.disabled = false;
+      return;
+    }
 
     try {
       if (mode === 'signup') {
