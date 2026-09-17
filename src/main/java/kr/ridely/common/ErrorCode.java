@@ -20,6 +20,10 @@ public enum ErrorCode {
     COMMON_002("COMMON-002", HttpStatus.UNAUTHORIZED,           "로그인이 필요합니다"),
     COMMON_003("COMMON-003", HttpStatus.FORBIDDEN,              "접근 권한이 없습니다"),
     COMMON_004("COMMON-004", HttpStatus.NOT_FOUND,              "요청한 정보를 찾을 수 없습니다"),
+    // 005는 429(요청 한도 초과)로 예약돼 있다. ADR-012 후속 과제이고 아직 미구현이라
+    // 번호를 비워 둔다. 외부 API 한도를 전파할 때 Retry-After와 함께 붙는다.
+    COMMON_006("COMMON-006", HttpStatus.METHOD_NOT_ALLOWED,     "지원하지 않는 요청 방식입니다"),
+    COMMON_007("COMMON-007", HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 요청 형식입니다"),
     COMMON_500("COMMON-500", HttpStatus.INTERNAL_SERVER_ERROR,  "서버 오류가 발생했습니다"),
 
     // 인증
