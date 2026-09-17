@@ -74,6 +74,12 @@ Cordova 프론트엔드(`android-shell/`) 코드 리뷰 및 실사용 흐름 시
 
 **조치**: "자유 주행으로 시작" 클릭 핸들러에서 `dangerZones = []`도 같이 리셋.
 
+### 10. `riding.js` — 알림 영역(`#riding-alert`)을 4곳이 공유해서 안전 경고가 다른 메시지에 덮여씀
+
+**증상**: `alertEl.innerHTML`을 쓰는 곳이 이어서 추적 안내(`resumeInterruptedSession`)·사고다발지 근접 경고(`checkDangerZones`)·GPS 에러(`onPositionError`)·종료 실패 메시지(`endRiding`) 네 군데인데 전부 같은 자리를 덮어썼다. 사고다발지 경고가 뜬 직후 GPS 오차 메시지 하나만 떠도 안전 경고가 화면에서 사라졌다.
+
+**조치**: 사고다발지 근접 경고 전용 슬롯(`#riding-danger-alert`)을 새로 분리. `checkDangerZones()`는 이제 이 슬롯에만 쓰고, 이어서 추적 안내·GPS 에러·종료 실패는 기존 `#riding-alert`를 그대로 쓴다 — 서로 덮어쓸 일이 없다. 라이딩 시작 시 두 슬롯 다 초기화.
+
 ---
 
 ## 미해결 — 우선순위 낮음 (코드 리뷰로 발견, 아직 손 안 댐)
@@ -98,13 +104,7 @@ Cordova 프론트엔드(`android-shell/`) 코드 리뷰 및 실사용 흐름 시
 
 ## 미해결 — 실사용 흐름 시뮬레이션으로 새로 발견 (아직 손 안 댐)
 
-파일 단위 리뷰가 아니라 실제 화면 이동 순서를 따라가며 찾은 문제들. (A는 해결돼서 위 8번 항목으로 옮김)
-
-### B. `riding.js` — 알림 영역(`#riding-alert`)을 4곳이 공유해서 안전 경고가 다른 메시지에 덮여씀
-
-`alertEl.innerHTML`을 쓰는 곳이 이어서 추적 안내(`resumeInterruptedSession`)·사고다발지 근접 경고(`checkDangerZones`)·GPS 에러(`onPositionError`)·종료 실패 메시지(`endRiding`) 네 군데인데 전부 같은 자리를 덮어쓴다. 사고다발지 경고가 뜬 직후 GPS 오차 메시지 하나만 떠도 **안전 경고가 화면에서 사라진다.**
-
-**제안**: 안전 경고(사고다발지 근접)는 별도 영역이나 우선순위를 가진 슬롯으로 분리 필요 — 설계 변경이 필요해서 A·C보다 손이 더 간다.
+파일 단위 리뷰가 아니라 실제 화면 이동 순서를 따라가며 찾은 문제들. (A·B는 해결돼서 위 9·10번 항목으로 옮김)
 
 ### C. `route-plan.js` — 타임아웃 후 재시도가 Idempotency-Key 재사용 규칙을 안 지킴
 

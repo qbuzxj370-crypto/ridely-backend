@@ -63,6 +63,9 @@ export function render(container) {
   const speedEl = container.querySelector('#riding-speed');
   const instantSpeedEl = container.querySelector('#riding-instant-speed');
   const alertEl = container.querySelector('#riding-alert');
+  // 사고다발지 근접 경고 전용 슬롯. alertEl과 같이 쓰면 이어서 추적 안내·GPS 에러·종료 실패
+  // 같은 일반 메시지가 뒤이어 뜰 때 안전 경고가 그대로 덮여서 사라졌다 — 안전 관련이라 분리한다.
+  const dangerAlertEl = container.querySelector('#riding-danger-alert');
   const selectedCard = container.querySelector('#riding-selected-card');
   const selectedSummary = container.querySelector('#riding-selected-summary');
   const savedListEl = container.querySelector('#riding-saved-list');
@@ -150,6 +153,7 @@ export function render(container) {
     idleBox.style.display = 'none';
     activeBox.style.display = 'block';
     alertEl.innerHTML = '';
+    dangerAlertEl.innerHTML = '';
 
     await initMap();
     beginTracking();
@@ -356,7 +360,7 @@ export function render(container) {
       const d = haversineM(lat, lng, zone.lat, zone.lng);
       if (d <= DANGER_ALERT_DISTANCE_M) {
         alertedZones.add(idx);
-        alertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${zone.name || ''}</div>`;
+        dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${zone.name || ''}</div>`;
       }
     });
   }
