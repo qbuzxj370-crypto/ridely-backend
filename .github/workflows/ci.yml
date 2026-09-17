@@ -18,8 +18,8 @@ jobs:
   #   모든 PR이 병합 불가가 된다. 바꾸려면 저장소 설정도 함께 고쳐야 한다.
   test:
     runs-on: ubuntu-latest
-    # Testcontainers가 이미지를 못 받거나 멈추면 GitHub 기본 상한인 6시간까지
-    # 돈다. 무료 실행 시간을 통째로 먹으므로 상한을 따로 둔다.
+    # Testcontainers가 이미지를 못 받거나 멈추면 GitHub 기본 상한까지 돈다.
+    # 그 값이 커서 무료 실행 시간을 크게 소모하므로 상한을 따로 둔다.
     timeout-minutes: 20
 
     steps:
