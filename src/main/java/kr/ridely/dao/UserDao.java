@@ -33,11 +33,22 @@ public interface UserDao {
                       @Param("request") UserUpdateRequestDTO request);
 
     /**
-     * 회원 탈퇴 (소프트 삭제).
-     * 행을 지우지 않고 상태만 바꾼다. 라이딩 기록·저장 경로가 참조하고 있어
-     * 실제로 삭제하면 이력이 함께 사라진다.
+     * 비밀번호 변경. 현재 비밀번호 확인과 정책 검사는 서비스가 한다.
      *
-     * @return 갱신 행 수
+     * @param passwordHash 새 비밀번호의 BCrypt 해시
+     * @return 갱신 행 수 (1)
+     */
+    int updatePassword(@Param("userId") long userId,
+                       @Param("passwordHash") String passwordHash);
+
+    /**
+     * 회원 탈퇴 (하드 삭제).
+     *
+     * 행을 지운다. 개인 기록(설정·저장 경로·라이딩 세션·토큰)은 FK CASCADE로 함께 사라지고, 추천 코스는 {@code SET NULL}로 남는다. 코스는 인증 없이 조회되는 공용 자산이라서다.
+     *
+     * 소프트 삭제였던 것을 바꿨다. 남기려던 이력이 GPS 궤적이라 탈퇴 뒤 보관할 법적 근거가 없다.
+     *
+     * @return 삭제 행 수 (1)
      */
     int withdraw(@Param("userId") long userId);
 }

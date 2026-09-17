@@ -31,18 +31,29 @@
         WHERE user_id = #{userId}
     </update>
 
-    <!--
-        회원 탈퇴 (소프트 삭제).
-        행을 지우지 않고 status만 바꾼다. 라이딩 기록·저장 경로가 이 회원을
-        참조하고 있어 실제로 삭제하면 이력까지 함께 사라진다.
-        이미 탈퇴한 회원은 다시 갱신하지 않는다.
-    -->
-    <update id="withdraw">
+    <!-- 비밀번호 변경. 해시는 서비스가 만들어 넘긴다 -->
+    <update id="updatePassword">
         UPDATE app_user
-           SET status     = 'WITHDRAWN',
-               updated_at = NOW()
+           SET password_hash = #{passwordHash},
+               updated_at    = NOW()
          WHERE user_id = #{userId}
-           AND status &lt;&gt; 'WITHDRAWN'
     </update>
+
+    <!--
+        회원 탈퇴 (하드 삭제).
+
+        행을 지운다. 나머지는 FK가 처리한다.
+          refresh_token · user_settings · saved_route · riding_session
+          · riding_history_embedding   → ON DELETE CASCADE
+          recommended_route            → ON DELETE SET NULL (코스는 공용 자산이라 남긴다)
+
+        소프트 삭제(status = 'WITHDRAWN')였던 것을 바꿨다. 이력을 남기려던 것인데
+        그 이력이 GPS 궤적이라 탈퇴 뒤 보관할 법적 근거가 없다.
+        개인정보보호법 제21조는 불필요해진 개인정보를 지체 없이 파기하라고 한다.
+    -->
+    <delete id="withdraw">
+        DELETE FROM app_user
+         WHERE user_id = #{userId}
+    </delete>
 
 </mapper>
