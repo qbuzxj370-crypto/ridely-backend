@@ -8,6 +8,7 @@ import kr.ridely.dao.RidingSessionSpatialDao;
 import kr.ridely.dto.rideHistory.RidingSessionEndRequestDTO;
 import kr.ridely.dto.rideHistory.RidingSessionResponseDTO;
 import kr.ridely.dto.rideHistory.RidingSessionStartRequestDTO;
+import kr.ridely.dto.rideHistory.RidingSummaryDTO;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,12 @@ public class RidingSessionServiceImpl implements RidingSessionService {
         List<RidingSessionResponseDTO> content =
                 ridingSessionDao.selectByUserId(userId, page * size, size);
         return PageResponse.of(content, page, size, total);
+    }
+
+    @Override
+    public RidingSummaryDTO findSummary(long userId) {
+        // 집계 함수는 대상이 없어도 한 행을 돌려주므로 null 검사가 필요 없다
+        return ridingSessionDao.selectSummary(userId);
     }
 
     /**

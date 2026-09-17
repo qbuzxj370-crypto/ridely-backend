@@ -1,6 +1,7 @@
 package kr.ridely.dao;
 
 import kr.ridely.dto.rideHistory.RidingSessionResponseDTO;
+import kr.ridely.dto.rideHistory.RidingSummaryDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -46,6 +47,15 @@ public interface RidingSessionDao {
 
     /** 목록의 전체 건수 */
     long countByUserId(@Param("userId") long userId);
+
+    /**
+     * 누적 통계. 종료된 세션만 센다.
+     *
+     * 기록이 없어도 null이 아니라 0으로 채운 행이 온다. 집계 함수는 대상이 없어도 한 행을 돌려주기 때문이다. 평균 속도만 null일 수 있다.
+     *
+     * @return 총 횟수·누적 거리·평균 속도·강도별 횟수
+     */
+    RidingSummaryDTO selectSummary(@Param("userId") long userId);
 
     /**
      * 소유자를 가리지 않고 존재만 확인한다. 404와 403을 구분하는 용도다.
