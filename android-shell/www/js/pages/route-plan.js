@@ -3,12 +3,18 @@ import { navigate } from '../router.js';
 import { isLoggedIn } from '../auth.js';
 import state from '../state.js';
 
+// 직전에 실패한 요청의 { key, bodyJson } 스냅샷. FRONTEND_GUIDE.md 규칙: "실패해서 재시도할
+// 때만" 같은 Idempotency-Key를 재사용해야 한다 — 새로 추천받기나 입력을 바꾼 뒤의 제출은
+// 새 키를 써야 한다. 그래서 body가 직전 실패 시도와 완전히 같을 때만 키를 재사용한다.
+let lastFailedRequest = null;
+
 export function render(container) {
   // 이전 방문에서 고른 출발지/도착지가 그대로 남아있으면, 화면엔 "선택됨" 배지가 안 보이는데
   // (새로 그려진 HTML이라 기본 숨김) 실제로는 재검색 없이 그 좌표로 제출돼버린다. 화면에
   // 보이는 것과 실제로 쓰일 값을 맞추기 위해 매번 새로 들어올 때 비워둔다.
   state.selectedStart = null;
   state.selectedEnd = null;
+  lastFailedRequest = null;
 
   wireSearch(container, 'start');
   wireSearch(container, 'end');
@@ -150,17 +156,27 @@ async function submit(container) {
 
   submitBtn.textContent = '코스를 만드는 중... (최대 15초)';
 
+  // 직전 실패 시도랑 요청 내용이 완전히 같으면(=같은 입력으로 재시도) 그 키를 재사용하고,
+  // 아니면(첫 시도 또는 입력을 바꿈) 새 키를 만든다.
+  const bodyJson = JSON.stringify(body);
+  const idempotencyKey =
+    lastFailedRequest && lastFailedRequest.bodyJson === bodyJson
+      ? lastFailedRequest.key
+      : newIdempotencyKey();
+
   try {
     const data = await apiFetch('/routes/recommend', {
       method: 'POST',
       auth: true,
       body,
       headers,
-      idempotencyKey: newIdempotencyKey(),
+      idempotencyKey,
     });
+    lastFailedRequest = null; // 성공했으니 다음 클릭(다시 추천받기 등)은 완전히 새 요청으로 취급
     state.lastRecommend = data;
     navigate('route-result');
   } catch (e) {
+    lastFailedRequest = { key: idempotencyKey, bodyJson };
     errorBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
   } finally {
     submitBtn.disabled = false;
