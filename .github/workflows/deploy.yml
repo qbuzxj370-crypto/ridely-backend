@@ -49,9 +49,38 @@ jobs:
 
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" '
             set -e
+
+            # 돌고 있던 jar를 남겨 둔다. 첫 배포에는 되돌릴 대상이 없으므로
+            # 실패를 무시한다 - set -e가 여기서 배포를 멈추면 안 된다.
+            sudo cp /opt/ridely/app.jar /opt/ridely/app.jar.bak 2>/dev/null || true
+
             sudo mv /tmp/app.jar /opt/ridely/app.jar
             sudo chown ridely:ridely /opt/ridely/app.jar
             sudo systemctl restart ridely
-            sleep 5
-            curl -sf http://localhost:8080/api/v1/health
+
+            # 고정 대기 대신 재시도한다. Flyway가 새 마이그레이션을 적용하는
+            # 배포는 기동이 길어지는데, 5초로 끊으면 정상 배포가 실패로 뜬다.
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8080/api/v1/health > /dev/null; then
+                echo "기동 확인 (${i}초)"
+                exit 0
+              fi
+              sleep 1
+            done
+
+            # 여기까지 왔으면 새 jar로 뜨지 못했다.
+            # 로그를 먼저 남긴다 - Actions 화면만 보고 원인을 알 수 있어야 한다.
+            echo "기동 확인 실패: 30초 안에 health가 응답하지 않았다"
+            sudo journalctl -u ridely -n 50 --no-pager || true
+
+            # 깨진 버전을 운영에 두지 않는다. 직전 jar로 되돌린다.
+            if [ -f /opt/ridely/app.jar.bak ]; then
+              echo "직전 jar로 롤백한다"
+              sudo mv /opt/ridely/app.jar.bak /opt/ridely/app.jar
+              sudo systemctl restart ridely
+            else
+              echo "백업이 없어 롤백하지 못한다 (첫 배포)"
+            fi
+
+            exit 1
           '
