@@ -3,11 +3,12 @@ import { requireLoginOrRedirect } from '../auth.js';
 import { navigate } from '../router.js';
 import state from '../state.js';
 import { createMap, drawPolyline, drawDangerZonePolygon, fitBounds } from '../map.js';
+import { newSessionId, saveCompletedSession } from '../ride-storage.js';
 
 // 여의도한강공원 — 추천 코스도 없고 GPS 첫 위치도 아직 없을 때 지도 초기 중심
 const FALLBACK_CENTER = { lat: 37.5265, lng: 126.9339 };
 
-const SAMPLE_INTERVAL_MS = 10000; // 가이드 기준: 10초 또는 50m 중 먼저 오는 것 — trackGeoJson 업로드용 샘플링
+const SAMPLE_INTERVAL_MS = 10000; // 10초 또는 50m 중 먼저 오는 것 — 지도에 그릴 궤적(track, 로컬 전용) 샘플링
 const SAMPLE_MIN_DISTANCE_M = 50;
 const DANGER_ALERT_DISTANCE_M = 200; // ridely.route.danger-zone-alert-distance-m 기본값과 동일
 
@@ -42,7 +43,7 @@ export function render(container) {
   let watchId = null;
   let timerId = null;
   let startedAt = null;
-  let lastSample = null; // trackGeoJson 샘플링 기준점 (10초/50m)
+  let lastSample = null; // 로컬 궤적(track) 샘플링 기준점 (10초/50m) — 서버로는 전송되지 않는다
   let lastFix = null;    // 이동거리 누적 기준점 — 매 GPS 갱신마다 갱신, 샘플링과 무관
   let track = []; // [lng, lat]
   let distanceM = 0;
@@ -132,14 +133,10 @@ export function render(container) {
   }
 
   async function startRiding() {
-    try {
-      const body = state.lastRecommend ? { recommendedRouteId: state.lastRecommend.recommendedRouteId } : {};
-      const session = await apiFetch('/riding-sessions', { method: 'POST', auth: true, body });
-      sessionId = session.ridingSessionId;
-    } catch (e) {
-      alertEl.innerHTML = `<div class="error-banner">라이딩을 시작하지 못했어요: ${e.message}</div>`;
-      return;
-    }
+    // 라이딩 세션은 서버에 만들지 않는다 — GPS로 계산되는 모든 것(궤적·거리·속도)이 서버에
+    // 닿는 순간이 없어야 한다(docs/shared/0918/LOCATION_PRIVACY_ARCHITECTURE.md). sessionId도
+    // 서버 발급이 아니라 클라이언트에서 생성한다.
+    sessionId = newSessionId();
 
     startedAt = Date.now();
     track = [];
@@ -382,39 +379,28 @@ export function render(container) {
     speedEl.textContent = hours > 0 ? (km / hours).toFixed(1) : '0.0';
   }
 
-  async function endRiding() {
-    // ⚠️ 성공을 확인하기 전엔 stopTracking()을 부르지 않는다. 예전엔 여기서 바로 멈췄는데,
-    // 그러면 종료 API가 실패해서(연결 끊김 등) 사용자가 재시도하는 동안 실제로는 계속 타고
-    // 있어도 그 구간 GPS가 하나도 안 잡혔다. 성공할 때까지는 추적을 계속 살려두고, 재시도
-    // 시점의 최신 distanceM/track으로 다시 계산해서 보낸다 — 그래서 실패해도 놓치는 구간이 없다.
-    const elapsedHours = (Date.now() - startedAt) / 3600000;
+  function endRiding() {
+    // 서버 왕복이 없어졌으니(로컬 저장뿐) 예전처럼 "API 실패 시 추적을 살려두고 재시도"할
+    // 이유가 없다 — 저장은 실패하지 않는다고 보고 바로 멈춘다.
+    const endedAt = Date.now();
     const distanceKm = distanceM / 1000;
+    const elapsedHours = (endedAt - startedAt) / 3600000;
     const avgSpeedKmh = elapsedHours > 0 ? distanceKm / elapsedHours : 0;
 
-    const body = {
+    saveCompletedSession({
+      sessionId,
+      recommendedRouteId: state.lastRecommend ? state.lastRecommend.recommendedRouteId : null,
+      startedAt,
+      endedAt,
       distanceKm: Math.round(distanceKm * 100) / 100,
       avgSpeedKmh: Math.round(avgSpeedKmh * 10) / 10,
-      isCompleted: true,
-      visitedPoiCount: 0,
       alertReceivedCount: alertedZones.size,
-    };
-    if (track.length >= 2) {
-      body.trackGeoJson = JSON.stringify({ type: 'LineString', coordinates: track });
-    }
+    });
 
-    try {
-      await apiFetch(`/riding-sessions/${sessionId}`, { method: 'PATCH', auth: true, body });
-      stopTracking();
-      clearProgress();
-      alert(`라이딩 종료! ${body.distanceKm}km 달렸어요.`);
-      navigate('riding-history');
-    } catch (e) {
-      // 화면을 idle로 되돌리지 않는다 — 되돌리면 "시작" 버튼이 새 세션을 만들어서 이 기록이
-      // 사라진다. GPS 추적은 위에서 그대로 두었으니(stopTracking 미호출) 재시도하는 동안의
-      // 이동도 계속 기록된다. 로컬 저장(saveProgress)은 이미 돼 있어 앱을 완전히 다시 켜도
-      // 이어서 종료를 시도할 수 있다.
-      alertEl.innerHTML = `<div class="error-banner">종료 처리에 실패했어요: ${e.message} — 연결 확인 후 종료 버튼을 다시 눌러주세요</div>`;
-    }
+    stopTracking();
+    clearProgress();
+    alert(`라이딩 종료! ${Math.round(distanceKm * 100) / 100}km 달렸어요.`);
+    navigate('riding-history');
   }
 
   function stopTracking() {
