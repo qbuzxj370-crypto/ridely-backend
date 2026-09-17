@@ -70,6 +70,38 @@
         SELECT COUNT(*) FROM riding_session WHERE user_id = #{userId}
     </select>
 
+    <!--
+        누적 통계.
+
+        FILTER는 같은 행 묶음에서 조건별로 따로 세는 표준 SQL이다(PostgreSQL 9.4+).
+        강도별로 GROUP BY를 돌리면 네 행이 나와 서비스가 다시 합쳐야 하는데,
+        그럴 만큼 복잡한 집계가 아니다.
+
+        LEFT JOIN인 이유는 자유 주행(recommended_route_id IS NULL) 때문이다.
+        INNER JOIN으로 묶으면 자유 주행이 통째로 빠져 누적 거리가 실제보다 작아진다.
+        LEFT면 총 횟수·거리에는 들어가고 강도별 FILTER에서만 빠진다 -
+        그래서 네 등급의 합이 total_ride_count보다 작을 수 있다.
+
+        ended_at IS NOT NULL: 달리는 중인 세션은 거리·속도가 아직 없다.
+        횟수에만 넣으면 평균이 실제보다 낮게 나온다.
+
+        COALESCE는 SUM에만 붙인다. 평균 속도는 0으로 채우면
+        「시속 0km로 달렸다」로 읽혀서 null로 둔다.
+    -->
+    <select id="selectSummary" resultType="kr.ridely.dto.rideHistory.RidingSummaryDTO">
+        SELECT COUNT(*)                                                  AS total_ride_count,
+               COALESCE(SUM(s.distance_km), 0)                           AS total_distance_km,
+               ROUND(AVG(s.avg_speed_kmh), 1)                            AS avg_speed_kmh,
+               COUNT(*) FILTER (WHERE r.intensity_level = 'LIGHT')       AS light_count,
+               COUNT(*) FILTER (WHERE r.intensity_level = 'MODERATE')    AS moderate_count,
+               COUNT(*) FILTER (WHERE r.intensity_level = 'HARD')        AS hard_count,
+               COUNT(*) FILTER (WHERE r.intensity_level = 'CHALLENGE')   AS challenge_count
+          FROM riding_session s
+          LEFT JOIN recommended_route r ON r.recommended_route_id = s.recommended_route_id
+         WHERE s.user_id = #{userId}
+           AND s.ended_at IS NOT NULL
+    </select>
+
     <!-- 소유자를 보지 않는다. 404와 403을 구분하는 용도라 남의 것도 true여야 한다 -->
     <select id="existsById" resultType="boolean">
         SELECT EXISTS (SELECT 1 FROM riding_session WHERE riding_session_id = #{ridingSessionId})
