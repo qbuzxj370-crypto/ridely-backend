@@ -1,5 +1,5 @@
 // Kakao Map JS SDK 초기화·마커·경로·사고다발지 폴리곤 헬퍼.
-const KAKAO_JS_KEY = 'b05d6aead387007f7b489b8b3c886dfc';
+import { KAKAO_JS_KEY } from './config.local.js';
 
 let loadPromise = null;
 
