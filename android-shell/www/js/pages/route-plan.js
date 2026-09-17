@@ -8,6 +8,9 @@ import state from '../state.js';
 // 새 키를 써야 한다. 그래서 body가 직전 실패 시도와 완전히 같을 때만 키를 재사용한다.
 let lastFailedRequest = null;
 
+// "현재 위치" GPS 버튼은 없앴다 — 서버로 보내는 좌표는 항상 사용자가 검색해서 고른 장소여야
+// 한다(docs/shared/0918/LOCATION_PRIVACY_ARCHITECTURE.md). 기기 GPS로 받은 좌표를 그대로
+// startLat/startLng에 실으면 그게 곧 "서버가 사용자의 실제 위치를 받는 것"이 되어버린다.
 export function render(container) {
   // 이전 방문에서 고른 출발지/도착지가 그대로 남아있으면, 화면엔 "선택됨" 배지가 안 보이는데
   // (새로 그려진 HTML이라 기본 숨김) 실제로는 재검색 없이 그 좌표로 제출돼버린다. 화면에
@@ -19,7 +22,6 @@ export function render(container) {
   wireSearch(container, 'start');
   wireSearch(container, 'end');
 
-  container.querySelector('#rp-use-location').addEventListener('click', () => useCurrentLocation(container));
   container.querySelector('#rp-submit').addEventListener('click', () => submit(container));
 
   applyAvoidCheckboxForLoginState(container);
@@ -87,25 +89,6 @@ function wireSearch(container, which) {
       resultsBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
     }
   });
-}
-
-function useCurrentLocation(container) {
-  const selectedBox = container.querySelector('#rp-start-selected');
-  if (!navigator.geolocation) {
-    container.querySelector('#rp-error').innerHTML = '<div class="error-banner">이 기기에서는 위치 기능을 쓸 수 없어요</div>';
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      state.selectedStart = { lat: pos.coords.latitude, lng: pos.coords.longitude, placeName: '현재 위치' };
-      selectedBox.textContent = '선택됨: 현재 위치';
-      selectedBox.style.display = 'inline-block';
-    },
-    (err) => {
-      container.querySelector('#rp-error').innerHTML = `<div class="error-banner">위치를 가져오지 못했어요: ${err.message}</div>`;
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
 }
 
 async function submit(container) {
