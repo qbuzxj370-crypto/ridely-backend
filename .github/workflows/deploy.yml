@@ -24,7 +24,14 @@ jobs:
         with:
           distribution: corretto
           java-version: '25'
+          cache: maven
 
+      # 테스트는 여기서 돌리지 않는다. PR CI(ci.yml)가 이미 같은 커밋을 검증했고,
+      # main은 브랜치 보호 규칙에 따라 PR 병합으로만 갱신된다 - 직접 push가 막혀
+      # 있어 검증되지 않은 커밋이 여기 올 수 없다.
+      #
+      # 배포마다 테스트 시간을 다시 쓰지 않으려는 것이다. 시연 직전 급한 수정에서
+      # 그 차이가 크다. 브랜치 보호를 푼다면 이 결정도 함께 되돌려야 한다.
       - name: Build jar
         run: ./mvnw -B clean package -DskipTests
 

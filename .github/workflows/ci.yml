@@ -1,0 +1,52 @@
+name: CI
+
+# PR에서만 돈다. feature 브랜치 push마다 돌리면 PR이 열린 뒤로는 같은 커밋을
+# 두 번 검증하게 되고, PR이 없는 동안은 병합될 일도 없어 막을 것이 없다.
+on:
+  pull_request:
+    branches: [main]
+
+# 같은 PR에 연달아 push하면 이전 실행을 취소한다. 리뷰를 받으며 커밋을 여러 번
+# 고치는 흐름이라 이게 없으면 실행이 쌓인다.
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ⚠️ 이 job id가 그대로 status check 이름이 된다. main 브랜치 보호 규칙이
+  #   "test"를 필수 체크로 잡고 있어, 이름을 바꾸면 그 체크가 영원히 오지 않아
+  #   모든 PR이 병합 불가가 된다. 바꾸려면 저장소 설정도 함께 고쳐야 한다.
+  test:
+    runs-on: ubuntu-latest
+    # Testcontainers가 이미지를 못 받거나 멈추면 GitHub 기본 상한인 6시간까지
+    # 돈다. 무료 실행 시간을 통째로 먹으므로 상한을 따로 둔다.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25 (Corretto)
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+          # 의존성을 매번 새로 받지 않도록 한다.
+          cache: maven
+
+      # 명령을 verify로 둔다. 테스트 단계까지만 돌리면 jar 패키징을 해보지 않아,
+      # 배포(deploy.yml)가 쓰는 package에서 처음 깨질 수 있다.
+      #
+      # 통합 테스트는 Testcontainers로 PostGIS를 띄운다. ubuntu 러너에 Docker가
+      # 올라가 있어 워크플로에 DB를 따로 붙이지 않아도 된다.
+      - name: Test and package
+        run: ./mvnw -B verify
+
+      # 실패했을 때 어느 단언이 깨졌는지 로그만으로는 좁히기 어렵다.
+      # 리포트를 받아 보는 편이 빠르다.
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
