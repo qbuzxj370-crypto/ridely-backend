@@ -100,6 +100,16 @@ Cordova 프론트엔드(`android-shell/`) 코드 리뷰 및 실사용 흐름 시
 
 **트레이드오프**: 라이딩 기록이 기기 로컬에만 남음 — 앱 삭제·기기 변경 시 소실, 기기 간 동기화 불가. "현재 위치에서 출발" 편의 기능 없어짐.
 
+### 13. `app.js` — 웹(Chrome)에서 열면 화면이 영영 안 뜸
+
+**배경**: `feature/mobile-web-fallback` 브랜치 작업. 스토어 등록 차질에 대비해 같은 `www/` 코드베이스를 모바일 Chrome에서 URL로 접속하는 웹페이지로도 쓸 수 있게 하는 작업 중 발견. 상세 계획은 `docs/shared/0918/MOBILE_WEB_FALLBACK_PLAN.md` 참고.
+
+**증상**: `app.js`가 `deviceready` 이벤트를 무조건 기다리는데, 이 이벤트는 Cordova 네이티브 브릿지(`cordova.js`)가 있어야만 발생한다. 일반 브라우저로 `index.html`을 열면 `cordova.js`가 없어(404) 이 이벤트가 영영 안 와서 라우터가 시작조차 안 되고 빈 화면으로 멈춘다.
+
+**조치**: `window.cordova` 존재 여부로 분기 — 있으면(Cordova 빌드) 기존대로 `deviceready`를 기다리고, 없으면(일반 웹) 바로 시작. Cordova 앱 쪽 동작은 변경 없음.
+
+**비고**: 코드베이스 전수 조사 결과 GPS(`navigator.geolocation`)·로컬 저장(`localStorage`) 등은 이미 표준 웹 API라 이 수정 하나로 8개 화면 전부 웹에서도 정상 동작함을 확인했다.
+
 ---
 
 ## 미해결 — 우선순위 낮음 (코드 리뷰로 발견, 아직 손 안 댐)
