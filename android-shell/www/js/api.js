@@ -1,9 +1,8 @@
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './token-store.js';
 
-// adb reverse tcp:8080 tcp:8080 로 기기의 localhost:8080을 PC 백엔드로 연결한다 (실기기 개발용).
-// LAN IP 직접 연결을 잠깐 시도했었는데, 실패 원인이 SecurityConfig의 CORS 처리 위치였던 게
-// 밝혀져서(2026-09-17) 원래대로 되돌렸다 — adb reverse가 원인이 아니었다.
-export const API_BASE = 'http://localhost:8080/api/v1';
+// 실배포 백엔드(EC2, CloudFront 경유). adb reverse+localhost:8080 조합은 로컬 개발용으로
+// 되돌릴 때 이 줄만 원복하면 된다.
+export const API_BASE = 'https://d2ym1ymgumwyg8.cloudfront.net/api/v1';
 
 export class ApiError extends Error {
   constructor(code, message, details, httpStatus) {
