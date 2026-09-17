@@ -104,7 +104,8 @@ public class StructuredLlmCaller {
         // 사용자별이 아니라 서비스 전체 합산 한도다 (LlmCallBudget 참조).
         // 재시도해도 한도가 늘지 않으므로 여기서 즉시 fallback으로 보낸다.
         if (!llmCallBudget.tryAcquire()) {
-            log.warn("LLM {} 호출 차단: 오늘 전역 호출 한도 초과", purpose);
+            log.warn("LLM {} 호출 차단: 오늘 전역 호출 한도 초과 ({}/{})",
+                    purpose, llmCallBudget.used(), llmCallBudget.limit());
             throw new LlmCallException(purpose, true, "오늘 LLM 호출 한도를 초과했습니다", null);
         }
 

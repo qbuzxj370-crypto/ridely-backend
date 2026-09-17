@@ -1,8 +1,11 @@
 package kr.ridely.infra.llm;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 /**
  * LLM(Bedrock 등) 호출의 하루 총량을 제한한다. 사용자별이 아니라 <b>서비스 전체 합산</b>이다.
@@ -21,9 +24,25 @@ import java.time.LocalDate;
 @Component
 public class LlmCallBudget {
 
+    private static final Logger log = LoggerFactory.getLogger(LlmCallBudget.class);
+
+    /**
+     * 자정을 서버 타임존이 아니라 한국 시간으로 고정한다.
+     *
+     * {@code LocalDate.now()}(타임존 없이)를 썼다면 EC2 JVM 기본 타임존을 그대로 탄다.
+     * 실측해보니 EC2가 UTC라, 그 상태로 두면 리셋이 KST 오전 9시에 일어난다 - 전날 한도를
+     * 소진했으면 자정이 지나고도 오전 9시까지 계속 fallback으로 샌다. 시연이 오전이면
+     * 바로 이 문제를 겪는다.
+     */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    /** 이 비율을 넘으면 소진되기 전에 경고를 한 번 남긴다 (시연 준비 중 조기 감지용) */
+    private static final double WARNING_THRESHOLD = 0.8;
+
     private final int dailyLimit;
     private int count = 0;
-    private LocalDate windowDate = LocalDate.now();
+    private LocalDate windowDate = LocalDate.now(KST);
+    private boolean warningLogged = false;
 
     public LlmCallBudget(LlmProperties properties) {
         this.dailyLimit = properties.dailyCallLimit();
@@ -34,15 +53,37 @@ public class LlmCallBudget {
      * 카운트를 올리지 않고 {@code false}를 반환한다.
      */
     public synchronized boolean tryAcquire() {
-        LocalDate today = LocalDate.now();
-        if (!today.equals(windowDate)) {
-            windowDate = today;
-            count = 0;
-        }
+        resetIfNewDay();
+
         if (count >= dailyLimit) {
             return false;
         }
         count++;
+
+        if (!warningLogged && count >= dailyLimit * WARNING_THRESHOLD) {
+            warningLogged = true;
+            log.warn("LLM 일일 호출 한도 {}% 도달: {}/{}",
+                    (int) (WARNING_THRESHOLD * 100), count, dailyLimit);
+        }
         return true;
+    }
+
+    /** 오늘 사용량. 리뷰에서 요청된 관측용 — 초과 로그에 used/limit을 같이 남기기 위함 */
+    public synchronized int used() {
+        resetIfNewDay();
+        return count;
+    }
+
+    public int limit() {
+        return dailyLimit;
+    }
+
+    private void resetIfNewDay() {
+        LocalDate today = LocalDate.now(KST);
+        if (!today.equals(windowDate)) {
+            windowDate = today;
+            count = 0;
+            warningLogged = false;
+        }
     }
 }
