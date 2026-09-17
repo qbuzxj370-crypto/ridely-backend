@@ -1,0 +1,50 @@
+name: Deploy to EC2
+
+# main 병합 시 자동 배포. 수동 실행(workflow_dispatch)도 열어둔다 —
+# .env만 바꾸고 재배포하고 싶을 때 등, 코드 변경 없이도 트리거할 수 있게.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 같은 브랜치에 연달아 push되면 먼저 것을 취소한다 — 두 배포가 겹쳐서
+# systemd 재시작이 꼬이는 걸 막는다.
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25 (Corretto)
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+
+      - name: Build jar
+        run: ./mvnw -B clean package -DskipTests
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          JAR_FILE=$(ls target/*.jar | grep -v sources | head -1)
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$JAR_FILE" ec2-user@"$EC2_HOST":/tmp/app.jar
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" '
+            set -e
+            sudo mv /tmp/app.jar /opt/ridely/app.jar
+            sudo chown ridely:ridely /opt/ridely/app.jar
+            sudo systemctl restart ridely
+            sleep 5
+            curl -sf http://localhost:8080/api/v1/health
+          '
