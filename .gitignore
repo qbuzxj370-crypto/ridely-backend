@@ -107,6 +107,8 @@ android-shell/www/build/
 keystore.properties
 # build.json에 keystore 비밀번호가 평문으로 들어간다 (cordova build --release가 자동 인식하는 파일)
 android-shell/build.json
+# 카카오 JS 키 등 프론트 로컬 전용 값. config.local.example.js를 복사해서 각자 채울 것
+android-shell/www/js/config.local.js
 
 # ===== 데이터 파일 (대용량 공공데이터 원본은 커밋하지 않는다) =====
 # 시드 SQL(db/seed/)은 커밋 대상. 원본 CSV·JSON 덤프만 제외
