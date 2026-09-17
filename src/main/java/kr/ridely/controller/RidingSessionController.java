@@ -11,6 +11,7 @@ import kr.ridely.common.PageResponse;
 import kr.ridely.dto.rideHistory.RidingSessionEndRequestDTO;
 import kr.ridely.dto.rideHistory.RidingSessionResponseDTO;
 import kr.ridely.dto.rideHistory.RidingSessionStartRequestDTO;
+import kr.ridely.dto.rideHistory.RidingSummaryDTO;
 import kr.ridely.service.RidingSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -85,6 +86,33 @@ public class RidingSessionController {
             @PathVariable long ridingSessionId,
             @Valid @RequestBody RidingSessionEndRequestDTO request) {
         return ApiResponse.ok(ridingSessionService.end(userId, ridingSessionId, request));
+    }
+
+    @Operation(summary = "내 라이딩 누적 통계",
+            description = """
+                    마이페이지와 저장 경로 화면의 통계 카드에 쓴다. 목록과 달리 **전체 기록을 센다.**
+
+                    ```json
+                    {
+                      "totalRideCount": 8,
+                      "totalDistanceKm": 112.4,
+                      "avgSpeedKmh": 15.8,
+                      "lightCount": 2, "moderateCount": 5, "hardCount": 1, "challengeCount": 0
+                    }
+                    ```
+
+                    - **종료된 라이딩만 센다.** 달리는 중인 세션은 거리·속도가 아직 없다.
+                    - **네 등급의 합이 `totalRideCount`보다 작을 수 있다.** 강도는 추천 코스가 가진
+                      값이라 자유 주행에는 없다. 차이가 자유 주행 횟수다.
+                    - **`avgSpeedKmh`는 응답에서 빠질 수 있다.** 기록이 없거나 속도를 보내지 않은
+                      경우다. null 필드는 직렬화에서 제외되므로 값이 아니라 필드 유무로 판단한다.
+                      0으로 두지 않은 것은 시속 0km로 달린 것처럼 보이기 때문이다.
+                    - 기록이 없어도 200이다. 가입 직후가 그 상태이고 값은 전부 0이다.
+                    """)
+    @GetMapping("/summary")
+    public ApiResponse<RidingSummaryDTO> summary(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(ridingSessionService.findSummary(userId));
     }
 
     @Operation(summary = "라이딩 기록 단건",
