@@ -1,32 +1,30 @@
-import { apiFetch } from '../api.js';
 import { requireLoginOrRedirect } from '../auth.js';
+import { listSessions } from '../ride-storage.js';
 
+// 라이딩 기록은 서버에 없다 — 전부 이 기기의 localStorage에서만 읽는다
+// (docs/shared/0918/LOCATION_PRIVACY_ARCHITECTURE.md). 앱 삭제·기기 변경 시 사라진다.
 export function render(container) {
   if (!requireLoginOrRedirect('riding-history')) return;
   load(container);
 }
 
-async function load(container) {
+function load(container) {
   const body = container.querySelector('#rh-body');
-  try {
-    const data = await apiFetch('/riding-sessions?page=0&size=20', { auth: true });
-    const items = data.content || [];
-    if (!items.length) {
-      body.innerHTML = '<div class="empty-state">아직 라이딩 기록이 없어요</div>';
-      return;
-    }
-    body.innerHTML = '';
-    items.forEach((s) => {
-      const el = document.createElement('div');
-      el.className = 'card';
-      const status = s.endedAt ? '완료' : '진행 중';
-      el.innerHTML = `
-        <strong>${s.distanceKm != null ? s.distanceKm + 'km' : status}</strong>
-        <div class="badge">${status}${s.avgSpeedKmh != null ? ' · 평균 ' + s.avgSpeedKmh + 'km/h' : ''}</div>
-      `;
-      body.appendChild(el);
-    });
-  } catch (e) {
-    body.innerHTML = `<div class="error-banner">${e.message}</div>`;
+  const items = listSessions();
+  if (!items.length) {
+    body.innerHTML = '<div class="empty-state">아직 라이딩 기록이 없어요</div>';
+    return;
   }
+  body.innerHTML = '';
+  items.forEach((s) => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    const dateLabel = new Date(s.endedAt).toLocaleString();
+    el.innerHTML = `
+      <strong>${s.distanceKm}km</strong>
+      <div class="badge">평균 ${s.avgSpeedKmh}km/h</div>
+      <div>${dateLabel}</div>
+    `;
+    body.appendChild(el);
+  });
 }
