@@ -4,6 +4,7 @@ import kr.ridely.common.PageResponse;
 import kr.ridely.dto.rideHistory.RidingSessionEndRequestDTO;
 import kr.ridely.dto.rideHistory.RidingSessionResponseDTO;
 import kr.ridely.dto.rideHistory.RidingSessionStartRequestDTO;
+import kr.ridely.dto.rideHistory.RidingSummaryDTO;
 
 /**
  * 라이딩 세션 서비스.
@@ -49,4 +50,13 @@ public interface RidingSessionService {
      * 응답에 GPS 트랙은 담기지 않는다. 트랙 하나가 좌표 수백~수천 개라 한 페이지가 수 MB가 된다. 궤적이 필요하면 단건 조회를 쓴다.
      */
     PageResponse<RidingSessionResponseDTO> findByUserId(long userId, int page, int size);
+
+    /**
+     * 누적 통계. 마이페이지와 저장 경로 화면이 쓴다.
+     *
+     * 목록과 나눈 이유는 기준이 다르기 때문이다. 목록은 한 페이지를 주고 통계는 전체를 센다. 한 응답에 담으면 읽는 쪽이 「이 페이지의 합계인가」를 구분할 수 없고, 페이지를 넘길 때마다 같은 집계가 다시 돈다.
+     *
+     * 기록이 없어도 예외를 던지지 않는다. 가입 직후가 그 상태이고 화면은 0을 보여 주면 된다.
+     */
+    RidingSummaryDTO findSummary(long userId);
 }
