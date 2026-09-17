@@ -1,0 +1,42 @@
+<div class="screen">
+  <div id="rp-error"></div>
+
+  <div class="field">
+    <label>출발지</label>
+    <input id="rp-start-query" type="text" placeholder="장소명 검색 (예: 여의도한강공원)">
+    <div style="display:flex; gap:8px; margin-top:6px">
+      <button class="btn btn-secondary" id="rp-start-search">검색</button>
+      <button class="btn btn-outline" id="rp-use-location">현재 위치</button>
+    </div>
+    <div id="rp-start-results"></div>
+    <div id="rp-start-selected" class="badge" style="display:none; margin-top:6px"></div>
+  </div>
+
+  <div class="field">
+    <label>도착지 (비우면 순환 코스)</label>
+    <input id="rp-end-query" type="text" placeholder="장소명 검색">
+    <button class="btn btn-secondary" id="rp-end-search" style="margin-top:6px">검색</button>
+    <div id="rp-end-results"></div>
+    <div id="rp-end-selected" class="badge" style="display:none; margin-top:6px"></div>
+  </div>
+
+  <div class="field">
+    <label>목표 거리 (km)</label>
+    <input id="rp-distance" type="number" value="10" min="1" max="100" step="0.5">
+  </div>
+
+  <div class="field">
+    <label>우선순위 — 편의 / 운동 / 풍경 (합 1.00으로 자동 보정)</label>
+    <div style="display:flex; gap:8px">
+      <input id="rp-conv" type="number" value="0.50" min="0" max="1" step="0.05">
+      <input id="rp-ex" type="number" value="0.30" min="0" max="1" step="0.05">
+      <input id="rp-sc" type="number" value="0.20" min="0" max="1" step="0.05">
+    </div>
+  </div>
+
+  <div class="field">
+    <label><input type="checkbox" id="rp-avoid"> 사고다발지 회피</label>
+  </div>
+
+  <button class="btn btn-primary" id="rp-submit">코스 추천 받기</button>
+</div>

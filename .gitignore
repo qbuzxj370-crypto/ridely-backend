@@ -66,6 +66,10 @@ docs/*
 # 팀과 공유하는 문서만 예외 (프론트 연동 가이드 등)
 !docs/shared/
 
+# docs/private/ — 디버깅 세션 로그 등 팀과 공유하지 않는 개인 작업 기록.
+# docs/*에 이미 걸리지만, 의도를 분명히 하려고 명시적으로 한 번 더 적어둔다.
+docs/private/
+
 # GCP 서비스 계정 키 (Vertex AI 전환 시 사용 — JSON 키 파일)
 *-service-account*.json
 gcp-key*.json
@@ -101,6 +105,8 @@ android-shell/www/build/
 *.keystore
 *.jks
 keystore.properties
+# build.json에 keystore 비밀번호가 평문으로 들어간다 (cordova build --release가 자동 인식하는 파일)
+android-shell/build.json
 
 # ===== 데이터 파일 (대용량 공공데이터 원본은 커밋하지 않는다) =====
 # 시드 SQL(db/seed/)은 커밋 대상. 원본 CSV·JSON 덤프만 제외

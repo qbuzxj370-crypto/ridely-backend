@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="kr.ridely.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Ridely</name>
+    <description>
+        흩어진 자전거 인프라를 활용해 라이딩을 키우는 AI 트레이너
+    </description>
+    <author email="dev@ridely.kr" href="https://ridely.kr">
+        Ridely Team
+    </author>
+    <content src="index.html" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-navigation href="*" />
+    <icon src="res/icon.png" />
+    <splash src="res/splash.png" />
+    <preference name="SplashScreenDelay" value="1500" />
+    <preference name="AutoHideSplashScreen" value="true" />
+    <preference name="SplashShowOnlyFirstTime" value="false" />
+    <preference name="SplashScreenBackgroundColor" value="#FF1E7B6C" />
+    <platform name="android">
+        <!-- 백엔드가 로컬 개발 중 https가 아닌 http(localhost)라서 평문 통신을 허용한다.
+             경쟁작 MVP 범위라 지금은 전체 허용, 배포 임박 시 도메인 단위로 좁힌다. -->
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application" xmlns:android="http://schemas.android.com/apk/res/android">
+            <application android:usesCleartextTraffic="true" />
+        </edit-config>
+    </platform>
+</widget>

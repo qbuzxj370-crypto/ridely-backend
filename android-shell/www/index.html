@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!-- CSP — 실제로 쓰는 도메인만 허용한다 (2026-09-18 좁힘).
+         script-src/style-src의 'unsafe-inline'은 각 화면 HTML의 onclick=""·style="" 인라인
+         속성 때문에 필요하다 (예: index.html의 탭바 버튼). 'unsafe-eval'은 카카오맵 JS SDK가
+         내부적으로 써서 뺄 수 없었다(제거 시 지도 로드 실패).
+         connect-src의 http://localhost:8080·http://10.0.2.2:8080은 로컬 개발용 백엔드 주소다 —
+         배포 시 실제 API 주소로 바꿔야 한다 (js/api.js의 API_BASE와 같이 바꿀 것). -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://dapi.kakao.com https://*.daumcdn.net;
+        style-src 'self' 'unsafe-inline' https://*.daumcdn.net;
+        img-src 'self' data: blob: https://*.daumcdn.net https://*.kakao.com;
+        connect-src 'self' http://localhost:8080 http://10.0.2.2:8080 https://dapi.kakao.com https://*.daumcdn.net;
+        font-src 'self' data:;
+    ">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <title>Ridely</title>
+</head>
+<body>
+    <div id="app-shell">
+        <header id="app-header">Ridely</header>
+        <main id="app"></main>
+        <nav id="tabbar">
+            <button class="tab-btn" data-route="home" onclick="location.hash='#/home'">
+                <span class="tab-icon">🏠</span><span>홈</span>
+            </button>
+            <button class="tab-btn" data-route="saved-routes" onclick="location.hash='#/saved-routes'">
+                <span class="tab-icon">📌</span><span>저장 경로</span>
+            </button>
+            <button class="tab-btn" data-route="riding" onclick="location.hash='#/riding'">
+                <span class="tab-icon">🚴</span><span>라이딩</span>
+            </button>
+            <button class="tab-btn" data-route="mypage" onclick="location.hash='#/mypage'">
+                <span class="tab-icon">👤</span><span>마이페이지</span>
+            </button>
+        </nav>
+    </div>
+    <script src="cordova.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

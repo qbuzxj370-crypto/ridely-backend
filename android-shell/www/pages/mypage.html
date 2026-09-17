@@ -1,0 +1,22 @@
+<div class="screen">
+  <div class="card" id="mp-summary">불러오는 중...</div>
+
+  <div class="card">
+    <strong>설정</strong>
+    <div class="field" style="margin-top:8px">
+      <label>편의 / 운동 / 풍경 기본값 (합 1.00)</label>
+      <div style="display:flex; gap:8px">
+        <input id="mp-conv" type="number" step="0.05" min="0" max="1">
+        <input id="mp-ex" type="number" step="0.05" min="0" max="1">
+        <input id="mp-sc" type="number" step="0.05" min="0" max="1">
+      </div>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="mp-avoid"> 사고다발지 회피</label>
+    </div>
+    <div id="mp-settings-error"></div>
+    <button class="btn btn-secondary" id="mp-save-settings">설정 저장</button>
+  </div>
+
+  <button class="btn btn-outline" id="mp-logout" style="margin-top:12px">로그아웃</button>
+</div>

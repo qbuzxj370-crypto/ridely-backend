@@ -2,6 +2,8 @@ package kr.ridely.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -63,12 +65,23 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // CorsConfig의 CorsConfigurationSource 빈을 필터 체인 맨 앞단에 물린다.
+                // WebMvcConfigurer 방식(DispatcherServlet 단계)이 아니라 이렇게 해야,
+                // JwtAuthenticationFilter가 유효하지 않은 토큰을 만나 응답을 직접 쓰고
+                // 체인을 끊어도(ApiErrorWriter) CORS 헤더가 이미 붙어 있다. 아래 OPTIONS
+                // permitAll 규칙과 별개로, 이게 진짜 CORS 헤더 부착을 보장하는 부분이다.
+                .cors(Customizer.withDefaults())
                 // REST API라 CSRF 비활성 (토큰 기반이라 쿠키를 쓰지 않는다)
                 .csrf(AbstractHttpConfigurer::disable)
                 // 세션을 만들지 않는다. 인증 상태는 매 요청의 토큰으로만 판단한다
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // CORS 프리플라이트(OPTIONS)는 Authorization 헤더 없이 온다.
+                        // 이걸 permitAll에 안 넣으면 보호 경로의 프리플라이트가 401로 막혀
+                        // 실제 요청(GET/POST 등)이 나가기도 전에 브라우저가 CORS 에러로 처리한다.
+                        // (Cordova WebView에서 인증 필요한 API 호출 시 실제로 이렇게 막혔다.)
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated()
                 )
