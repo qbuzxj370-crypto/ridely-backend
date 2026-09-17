@@ -182,7 +182,7 @@ class CoachCommentResolverTest {
 
     private ToneValidator toneValidator() {
         return new ToneValidator(new LlmProperties(
-                "gemini", 15, 1, 0.2, 0.6, List.of(VIOLATION, "하시기 바랍니다", "이용자")));
+                "gemini", 15, 1, 0.2, 0.6, List.of(VIOLATION, "하시기 바랍니다", "이용자"), 150));
     }
 
     private CoachCommentDTO comment(String coachComment) {
