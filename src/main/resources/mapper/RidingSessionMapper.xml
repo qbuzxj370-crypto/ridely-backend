@@ -80,7 +80,7 @@
         LEFT JOIN인 이유는 자유 주행(recommended_route_id IS NULL) 때문이다.
         INNER JOIN으로 묶으면 자유 주행이 통째로 빠져 누적 거리가 실제보다 작아진다.
         LEFT면 총 횟수·거리에는 들어가고 강도별 FILTER에서만 빠진다 -
-        그래서 네 등급의 합이 total_ride_count보다 작을 수 있다.
+        그래서 네 단계의 합이 total_ride_count보다 작을 수 있다.
 
         ended_at IS NOT NULL: 달리는 중인 세션은 거리·속도가 아직 없다.
         횟수에만 넣으면 평균이 실제보다 낮게 나온다.

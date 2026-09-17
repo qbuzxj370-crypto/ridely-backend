@@ -124,7 +124,7 @@ class RidingSummaryTest extends AbstractIntegrationTest {
         summary()
                 .andExpect(jsonPath("$.data.totalRideCount").value(2))
                 .andExpect(jsonPath("$.data.totalDistanceKm").value(20.0))
-                // 네 등급의 합은 1이다. 총 횟수 2와의 차이가 자유 주행 횟수다
+                // 네 단계의 합은 1이다. 총 횟수 2와의 차이가 자유 주행 횟수다
                 .andExpect(jsonPath("$.data.moderateCount").value(1))
                 .andExpect(jsonPath("$.data.lightCount").value(0))
                 .andExpect(jsonPath("$.data.hardCount").value(0))
