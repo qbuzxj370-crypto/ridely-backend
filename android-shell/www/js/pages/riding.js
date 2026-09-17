@@ -375,7 +375,10 @@ export function render(container) {
   }
 
   async function endRiding() {
-    stopTracking();
+    // ⚠️ 성공을 확인하기 전엔 stopTracking()을 부르지 않는다. 예전엔 여기서 바로 멈췄는데,
+    // 그러면 종료 API가 실패해서(연결 끊김 등) 사용자가 재시도하는 동안 실제로는 계속 타고
+    // 있어도 그 구간 GPS가 하나도 안 잡혔다. 성공할 때까지는 추적을 계속 살려두고, 재시도
+    // 시점의 최신 distanceM/track으로 다시 계산해서 보낸다 — 그래서 실패해도 놓치는 구간이 없다.
     const elapsedHours = (Date.now() - startedAt) / 3600000;
     const distanceKm = distanceM / 1000;
     const avgSpeedKmh = elapsedHours > 0 ? distanceKm / elapsedHours : 0;
@@ -393,16 +396,16 @@ export function render(container) {
 
     try {
       await apiFetch(`/riding-sessions/${sessionId}`, { method: 'PATCH', auth: true, body });
+      stopTracking();
       clearProgress();
       alert(`라이딩 종료! ${body.distanceKm}km 달렸어요.`);
       navigate('riding-history');
     } catch (e) {
       // 화면을 idle로 되돌리지 않는다 — 되돌리면 "시작" 버튼이 새 세션을 만들어서 이 기록이
-      // 사라진다. 연결이 끊긴 것뿐일 수 있으니(예: USB 재연결 필요) 같은 종료 버튼을 다시
-      // 누를 수 있게 active 화면에 그대로 둔다. 로컬 저장(saveProgress)은 이미 돼 있어
-      // 앱을 완전히 다시 켜도 이어서 종료를 시도할 수 있다.
+      // 사라진다. GPS 추적은 위에서 그대로 두었으니(stopTracking 미호출) 재시도하는 동안의
+      // 이동도 계속 기록된다. 로컬 저장(saveProgress)은 이미 돼 있어 앱을 완전히 다시 켜도
+      // 이어서 종료를 시도할 수 있다.
       alertEl.innerHTML = `<div class="error-banner">종료 처리에 실패했어요: ${e.message} — 연결 확인 후 종료 버튼을 다시 눌러주세요</div>`;
-      timerId = timerId || setInterval(updateElapsed, 1000);
     }
   }
 
