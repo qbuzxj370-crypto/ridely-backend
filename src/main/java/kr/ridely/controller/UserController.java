@@ -5,17 +5,22 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.ridely.common.ApiResponse;
+import kr.ridely.dto.user.PasswordChangeRequestDTO;
 import kr.ridely.dto.user.UserResponseDTO;
 import kr.ridely.dto.user.UserSettingsDTO;
 import kr.ridely.dto.user.UserUpdateRequestDTO;
+import kr.ridely.dto.user.WithdrawRequestDTO;
 import kr.ridely.service.UserService;
 import kr.ridely.service.UserSettingsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -54,7 +59,7 @@ public class UserController {
                     보낸 항목만 변경된다. 예를 들어 `{"nickname": "새닉네임"}`만 보내면
                     이메일은 기존 값이 유지된다.
 
-                    아이디는 변경할 수 없고, 비밀번호는 현재 비밀번호 확인이 필요해 별도 API로 분리 예정이다.
+                    아이디는 변경할 수 없고, 비밀번호는 현재 비밀번호 확인이 필요해 `PATCH /users/me/password`로 분리돼 있다.
 
                     - 형식 오류(닉네임 길이·이메일 형식): COMMON-001
                     """)
@@ -63,6 +68,58 @@ public class UserController {
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserUpdateRequestDTO request) {
         return ApiResponse.ok(userService.updateProfile(userId, request));
+    }
+
+    @Operation(summary = "비밀번호 변경",
+            description = """
+                    현재 비밀번호를 확인한 뒤 새 비밀번호로 바꾼다. 성공하면 204, 본문은 없다.
+
+                    **성공 뒤 저장된 토큰을 지우고 로그인 화면으로 보낸다.** 리프레시 토큰이
+                    전부 폐기되므로 재발급이 안 된다. 요청을 보낸 기기도 마찬가지다.
+                    쓰던 액세스 토큰은 만료될 때까지 남지만 그 뒤로는 쓸 수 없다.
+
+                    새 비밀번호 정책은 회원가입과 같다 - 8~30자, 영문·숫자·특수문자 각 1자 이상.
+                    현재 비밀번호와 같아도 통과한다.
+
+                    - 현재 비밀번호 불일치: AUTH-201
+                    - 새 비밀번호 정책 위반: AUTH-102
+                    - 빈값: COMMON-001
+                    """)
+    @PatchMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PasswordChangeRequestDTO request) {
+        userService.changePassword(userId, request);
+    }
+
+    @Operation(summary = "회원 탈퇴",
+            description = """
+                    계정을 지운다. **되돌릴 수 없다.** 성공하면 204, 본문은 없다.
+
+                    ⚠️ **본문에 비밀번호를 담아 보낸다.** DELETE에 본문을 싣는 것이라
+                    HTTP 클라이언트에 따라 기본 설정에서 본문을 빼고 보낼 수 있다.
+                    비밀번호가 맞는데 COMMON-001이 온다면 이쪽을 먼저 확인한다.
+
+                    **성공 뒤 저장된 토큰을 모두 지우고 로그인 화면으로 보낸다.**
+
+                    화면은 확인 단계를 두 번 두는 것이 관례다 - 무엇이 사라지는지 안내한 뒤
+                    비밀번호를 받는다.
+
+                    **함께 사라지는 것**: 설정, 저장한 코스, 라이딩 기록과 궤적, 로그인 세션.
+                    **남는 것**: 추천받았던 코스. 회원과의 연결만 끊기고 코스 번호로는 계속 조회된다.
+
+                    탈퇴한 아이디로 다시 가입할 수 있다.
+
+                    - 비밀번호 불일치: AUTH-201
+                    - 빈값: COMMON-001
+                    """)
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody WithdrawRequestDTO request) {
+        userService.withdraw(userId, request);
     }
 
     @Operation(summary = "내 설정 조회",

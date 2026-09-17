@@ -56,11 +56,13 @@ public class AuthController {
 
     @Operation(summary = "로그인",
             description = """
-                    액세스 토큰(1시간)과 리프레시 토큰(14일)을 발급한다.
+                    액세스 토큰(15분)과 리프레시 토큰(14일)을 발급한다.
                     두 토큰을 저장해 두고, 이후 요청 헤더에 `Authorization: Bearer {accessToken}`을 넣는다.
+                    수명은 응답의 `accessTokenExpiresIn`(초)으로 함께 내려간다.
 
-                    - 아이디가 없거나 비밀번호가 틀림: AUTH-201 (두 경우를 구분하지 않는다)
-                    - 탈퇴·정지 계정: AUTH-202
+                    - 아이디가 없거나 비밀번호가 틀림: AUTH-201 (두 경우를 구분하지 않는다.
+                      탈퇴한 계정도 여기에 해당한다)
+                    - 정지된 계정: AUTH-202
                     """)
     @PostMapping("/login")
     public ApiResponse<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {

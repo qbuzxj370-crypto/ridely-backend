@@ -58,7 +58,7 @@ public class ApiDocsConfig {
                         입력값 검증에 실패하면 `error.details`에 어느 항목이 왜 틀렸는지 담긴다.
 
                         ## 인증
-                        1. `POST /auth/login`으로 액세스 토큰(1시간)과 리프레시 토큰(14일)을 받는다.
+                        1. `POST /auth/login`으로 액세스 토큰(15분)과 리프레시 토큰(14일)을 받는다.
                         2. 이후 요청 헤더에 `Authorization: Bearer {accessToken}`을 넣는다.
                         3. `AUTH-301`(만료) 응답을 받으면 `POST /auth/refresh`로 갱신 후 원 요청을 재시도한다.
                         4. `AUTH-302`(재로그인 필요) 또는 `COMMON-002`(로그인 필요) 응답을 받으면

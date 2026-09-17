@@ -142,9 +142,16 @@ class AuthLoginControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 계정은 AUTH-202를 반환한다")
-    void 탈퇴_계정() throws Exception {
-        jdbcClient.sql("UPDATE app_user SET status = 'WITHDRAWN' WHERE login_id = :id")
+    @DisplayName("정지된 계정은 AUTH-202를 반환한다")
+    void 정지_계정() throws Exception {
+        /*
+         * 탈퇴가 아니라 정지로 확인한다. 탈퇴는 행을 지우므로 이 분기에 닿지 않고
+         * 아이디가 없는 것과 같은 AUTH-201이 된다(UserAccountLifecycleTest).
+         *
+         * 정지시키는 기능은 아직 없어 상태를 직접 넣는다. 확인하려는 것은
+         * "ACTIVE가 아니면 자격 증명이 맞아도 막는다"는 규칙이다.
+         */
+        jdbcClient.sql("UPDATE app_user SET status = 'SUSPENDED' WHERE login_id = :id")
                 .param("id", LOGIN_ID)
                 .update();
 
