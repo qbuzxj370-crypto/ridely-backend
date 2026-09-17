@@ -24,29 +24,44 @@ export function render(container) {
 
   container.querySelector('#rp-submit').addEventListener('click', () => submit(container));
 
-  applyAvoidCheckboxForLoginState(container);
+  applySettingsForLoginState(container);
 }
 
 /**
- * 회피 체크박스는 비회원 전용이다 — 회원은 백엔드가 이 체크박스(X-Ridely-Avoid-Danger-Zones
- * 헤더)를 무시하고 마이페이지 설정값만 따른다(RouteController.java 주석 참고). 로그인 상태에서
- * 체크박스를 그대로 두면 마이페이지 설정과 다르게 조작할 수 있어서 시연에서 바로 티가 난다.
- * 로그인 상태면 실제로 적용될 마이페이지 설정값을 그대로 보여주고 잠근다.
+ * 회피 체크박스와 우선순위(편의/운동/풍경) 슬라이더는 둘 다 마이페이지 기본값이 있는 회원
+ * 전용 설정이다. 회피는 백엔드가 헤더를 무시하고 마이페이지 설정만 따르고
+ * (RouteController.java 주석 참고), 우선순위는 백엔드가 그대로 요청값을 쓰지만 화면에
+ * 기본값을 안 채워주면 로그인해서 마이페이지에 저장해둔 값과 다른 값으로 추천을 받게 된다
+ * (실사용 버그 리포트: 마이페이지에서 바꾼 기본값이 코스 추천에 반영 안 됨). 로그인 상태면
+ * 둘 다 마이페이지 설정값으로 채우고 잠가서, 화면에 보이는 값과 실제 적용되는 값을 맞춘다.
  */
-async function applyAvoidCheckboxForLoginState(container) {
+async function applySettingsForLoginState(container) {
   const checkbox = container.querySelector('#rp-avoid');
-  const hint = container.querySelector('#rp-avoid-hint');
+  const avoidHint = container.querySelector('#rp-avoid-hint');
+  const convInput = container.querySelector('#rp-conv');
+  const exInput = container.querySelector('#rp-ex');
+  const scInput = container.querySelector('#rp-sc');
+  const priorityHint = container.querySelector('#rp-priority-hint');
   if (!isLoggedIn()) return;
 
   checkbox.disabled = true;
+  convInput.disabled = true;
+  exInput.disabled = true;
+  scInput.disabled = true;
   try {
     const settings = await apiFetch('/users/me/settings', { auth: true });
     checkbox.checked = !!settings.avoidDangerZones;
-    hint.textContent = '로그인 상태에서는 마이페이지 설정을 따라요 (마이페이지에서 바꿀 수 있어요)';
+    convInput.value = settings.defaultPriorityConvenience;
+    exInput.value = settings.defaultPriorityExercise;
+    scInput.value = settings.defaultPriorityScenery;
+    avoidHint.textContent = '로그인 상태에서는 마이페이지 설정을 따라요 (마이페이지에서 바꿀 수 있어요)';
+    priorityHint.textContent = '로그인 상태에서는 마이페이지에 저장한 기본값을 따라요 (마이페이지에서 바꿀 수 있어요)';
   } catch (e) {
-    hint.textContent = '마이페이지 설정을 불러오지 못했어요 — 저장된 설정대로 적용됩니다';
+    avoidHint.textContent = '마이페이지 설정을 불러오지 못했어요 — 저장된 설정대로 적용됩니다';
+    priorityHint.textContent = '마이페이지 설정을 불러오지 못했어요 — 저장된 설정대로 적용됩니다';
   }
-  hint.style.display = 'block';
+  avoidHint.style.display = 'block';
+  priorityHint.style.display = 'block';
 }
 
 function wireSearch(container, which) {
