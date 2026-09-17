@@ -1,0 +1,11 @@
+:root {
+  --color-primary: #1E7B6C;
+  --color-accent: #FF7A45;
+  --color-bg: #F7F9F8;
+  --color-surface: #FFFFFF;
+  --color-text: #1A1F1E;
+  --color-text-secondary: #6B7674;
+  --color-danger: #E5484D;
+  --header-height: 52px;
+  --tabbar-height: 60px;
+}

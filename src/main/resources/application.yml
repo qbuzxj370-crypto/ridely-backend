@@ -415,6 +415,14 @@ ridely:
   cors:
     allowed-origins:
       - http://localhost:8080
+      - http://10.0.2.2:8080      # 안드로이드 에뮬레이터에서 호스트를 부르는 주소
+      - http://localhost:8100     # Cordova 개발 서버(cordova serve)
+      # cordova-android 12+ (WebViewAssetLoader)는 file://가 아니라 이 가상 오리진으로
+      # 앱을 서빙한다 — 실기기 로그로 실측 확인(2026-09-17): Origin: https://localhost.
+      # 구버전 cordova-android나 커스텀 스킴 설정이 남아 있을 수 있어 file:///null도 같이 둔다.
+      - https://localhost
+      - file://
+      - "null"
     allowed-methods:
       - GET
       - POST

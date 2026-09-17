@@ -1,0 +1,27 @@
+<div class="screen">
+  <div id="riding-idle">
+    <div class="card" id="riding-selected-card" style="display:none">
+      <strong>선택된 코스</strong>
+      <div id="riding-selected-summary"></div>
+    </div>
+
+    <div class="card">
+      <strong>저장한 코스에서 선택</strong>
+      <div id="riding-saved-list" style="margin-top:8px">불러오는 중...</div>
+    </div>
+
+    <button class="btn btn-primary" id="riding-start">라이딩 시작</button>
+    <button class="btn btn-outline" id="riding-start-free" style="margin-top:8px">자유 주행으로 시작</button>
+  </div>
+  <div id="riding-active" style="display:none">
+    <div id="riding-map" class="map-box" style="height:320px"></div>
+    <div class="card">
+      <div>거리 <strong id="riding-distance">0.0</strong> km</div>
+      <div>경과 시간 <strong id="riding-elapsed">00:00</strong></div>
+      <div>현재 속도 <strong id="riding-instant-speed">0.0</strong> km/h</div>
+      <div>평균 속도 <strong id="riding-speed">0.0</strong> km/h</div>
+    </div>
+    <div id="riding-alert"></div>
+    <button class="btn btn-primary" id="riding-end">라이딩 종료</button>
+  </div>
+</div>
