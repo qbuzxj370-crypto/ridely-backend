@@ -1,4 +1,4 @@
-	# Ridely 개발환경 구성 가이드
+	# Ridely 개발환경 구성 가이드.
 
 > **대상**: git push --force 팀원 3명 (Windows + Linux)
 > **목적**: 같은 환경에서 같은 결과물이 나오도록 보장
