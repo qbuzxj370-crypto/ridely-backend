@@ -41,7 +41,7 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
     }
 
-    /** access 토큰 발급 (기본 1시간) */
+    /** access 토큰 발급 (기본 15분) */
     public String generateAccessToken(long userId) {
         return generate(userId, TYPE_ACCESS, properties.accessTokenValiditySeconds());
     }

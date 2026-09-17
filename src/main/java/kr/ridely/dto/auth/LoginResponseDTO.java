@@ -23,7 +23,7 @@ import lombok.*;
  *     "accessToken": "eyJhbGciOi...",
  *     "refreshToken": "eyJhbGciOi...",
  *     "tokenType": "Bearer",
- *     "accessTokenExpiresIn": 3600
+ *     "accessTokenExpiresIn": 900
  *   },
  *   "error": null
  * }
@@ -34,7 +34,7 @@ import lombok.*;
 @AllArgsConstructor
 public class LoginResponseDTO {
 
-    /** API 호출용 짧은 수명 토큰 (기본 1시간) */
+    /** API 호출용 짧은 수명 토큰 (기본 15분) */
     private String accessToken;
 
     /** accessToken 재발급용 긴 수명 토큰 (기본 14일) */
@@ -43,7 +43,11 @@ public class LoginResponseDTO {
     /** 토큰 종류. 항상 "Bearer" */
     private String tokenType;
 
-    /** accessToken 만료까지 남은 시간(초). 앱이 갱신 시점을 계산하는 데 쓴다 */
+    /**
+     * accessToken 만료까지 남은 시간(초). 앱이 갱신 시점을 계산하는 데 쓴다.
+     * 설정으로 바꿀 수 있으므로 클라이언트는 이 값을 읽어야 한다. 고정값으로 두면
+     * 서버가 수명을 줄였을 때 만료된 토큰으로 계속 호출하게 된다.
+     */
     private long accessTokenExpiresIn;
 
     /** tokenType을 "Bearer"로 자동 채워 주는 편의 생성자 */

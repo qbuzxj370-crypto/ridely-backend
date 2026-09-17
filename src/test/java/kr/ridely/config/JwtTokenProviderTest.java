@@ -27,9 +27,14 @@ class JwtTokenProviderTest {
                 new JwtProperties(SECRET, accessSeconds, refreshSeconds, "ridely"));
     }
 
-    /** 기본 provider — access 1시간, refresh 14일 (운영 설정과 동일) */
+    /**
+     * 기본 provider — access 15분, refresh 14일 (운영 설정과 동일).
+     *
+     * 아래 나머지 3600은 운영 설정과 무관하다. 시크릿 검증이나 만료 자체를 보는
+     * 케이스여서 넉넉한 값이면 되고, 운영 값이 바뀌어도 따라갈 필요가 없다.
+     */
     private JwtTokenProvider provider() {
-        return provider(3600, 1209600);
+        return provider(900, 1209600);
     }
 
     @Test
