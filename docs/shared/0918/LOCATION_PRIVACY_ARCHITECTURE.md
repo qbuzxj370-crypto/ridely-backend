@@ -18,7 +18,7 @@
 |---|---|---|---|
 | 코스 추천 (`route-plan.js`) | ❌ 사용 안 함 | 사용자가 **검색해서 고른 장소**의 좌표만 | GPS 버튼(`useCurrentLocation()`) 제거, 장소 검색(`/geo/search`)으로만 출발/도착 선택 |
 | 라이딩 실시간 추적 (`riding.js`) | ✅ 로컬 계산에만 사용 | ❌ 전혀 없음 | 거리·속도·궤적·사고다발지 근접 판정 전부 클라이언트에서 계산 |
-| 라이딩 세션 기록 | - | ❌ 전혀 없음 | 세션 시작/종료 모두 서버 API 호출 자체를 없앰. 전 구간 로컬(IndexedDB) 저장 |
+| 라이딩 세션 기록 | - | ❌ 전혀 없음 | 세션 시작/종료 모두 서버 API 호출 자체를 없앰. 전 구간 로컬(`localStorage`, `ride-storage.js`) 저장 |
 | 라이딩 이력 조회 (`riding-history.js`) | - | ❌ 없음 (조회 없음) | 로컬에 저장된 세션 목록을 읽어서 표시 |
 | 마이페이지 누적 통계 (`mypage.js`) | - | ❌ 없음 (조회 없음) | 로컬 저장 데이터로 직접 합산 계산 |
 | 홈 인프라 검색 (`/pois/nearby`) | ❌ 사용 안 함 | 지도 중심 좌표만 | 원래도 GPS 아님(기본값 하드코딩 or 검색한 장소) — 변경 없음, 확인 차 기재 |
@@ -27,24 +27,29 @@
 
 ### 프론트 (`android-shell/www/js/`)
 
-- [ ] `pages/route-plan.js`: `useCurrentLocation()` 함수 및 "현재 위치 사용" 버튼(`#rp-use-location`) 제거
-- [ ] `pages/riding.js`:
-  - [ ] `startRiding()`에서 `POST /riding-sessions` 호출 제거, `sessionId`를 클라이언트에서 UUID로 생성
-  - [ ] `endRiding()`에서 `PATCH /riding-sessions/{id}` 호출 제거
-  - [ ] 세션 데이터(거리·속도·궤적·경고횟수·타임스탬프)를 IndexedDB에 저장하는 로직 추가
-- [ ] `pages/riding-history.js`: `GET /riding-sessions` 대신 로컬 저장소 조회로 교체
-- [ ] `pages/mypage.js`: `GET /riding-sessions/summary` 대신 로컬 데이터 합산으로 교체
-- [ ] `auth.js` 또는 회원가입/최초 라이딩 화면: 위치정보 수집·이용 동의 체크박스 추가 (서버 전송은 없지만 기기에서 위치를 수집하는 행위 자체에 대한 사용자 고지 목적)
+- [x] `pages/route-plan.js`: `useCurrentLocation()` 함수 및 "현재 위치 사용" 버튼(`#rp-use-location`) 제거
+- [x] `pages/riding.js`:
+  - [x] `startRiding()`에서 `POST /riding-sessions` 호출 제거, `sessionId`를 클라이언트에서 UUID로 생성
+  - [x] `endRiding()`에서 `PATCH /riding-sessions/{id}` 호출 제거
+  - [x] 세션 데이터(거리·속도·경고횟수·타임스탬프)를 로컬 저장소에 저장하는 로직 추가 — `ride-storage.js`(신규). IndexedDB 대신 기존 코드베이스 패턴과 일관되게 `localStorage` 사용(용량상 충분한 규모라 비동기 API의 복잡도를 더할 이유가 없음)
+- [x] `pages/riding-history.js`: `GET /riding-sessions` 대신 로컬 저장소 조회로 교체
+- [x] `pages/mypage.js`: `GET /riding-sessions/summary` 대신 로컬 데이터 합산으로 교체
+- [x] `auth.js`/`auth.html`: 회원가입 화면에 위치정보 수집·이용 동의 체크박스 추가 (서버 전송은 없지만 기기에서 위치를 수집하는 행위 자체에 대한 사용자 고지 목적). 미동의 시 가입 제출 차단
 
 ### 백엔드
 
 - [ ] `RidingSessionController`, `RidingSessionDao`, `RidingSessionSpatialDao` 등 라이딩 세션 관련 코드: 당장 삭제하지 않고 유지 (프론트가 호출을 멈추면 자연히 미사용 상태가 됨). 추후 정리 여부는 별도 결정
-- [ ] `RouteController`/`RouteRecommendServiceImpl`: 변경 없음 — 이미 좌표 자체는 "사용자가 고른 장소"로만 받으므로 백엔드 로직 수정 불필요, 프론트가 그 좌표의 출처(GPS→검색으로)만 바꾸면 됨
+- [x] `RouteController`/`RouteRecommendServiceImpl`: 변경 없음 — 이미 좌표 자체는 "사용자가 고른 장소"로만 받으므로 백엔드 로직 수정 불필요, 프론트가 그 좌표의 출처(GPS→검색으로)만 바꿈
 
 ### 문서
 
-- [ ] `FRONTEND_ISSUES.md` 또는 별도 항목으로 이번 변경 사항 기록 (완료 후)
+- [x] `FRONTEND_ISSUES.md`에 이번 변경 사항 기록 (12번 항목)
 - [ ] 공모전 신청서에 "위치정보는 기기 내에서만 처리되며 서버로 전송·저장되지 않음" 명시
+
+### 테스트
+
+- [x] 정적 서버 + 브라우저 자동화로 확인: GPS 버튼 제거, 동의 미체크 시 가입 차단, 라이딩 이력/마이페이지 로컬 데이터 렌더링, `ride-storage.js` 저장·집계 로직(Node 스크립트)
+- [ ] 실기기에서 실제 GPS로 라이딩 1회 진행해 로컬 저장 전 구간 최종 확인 (진행 중)
 
 ## 남는 리스크 / 트레이드오프
 
