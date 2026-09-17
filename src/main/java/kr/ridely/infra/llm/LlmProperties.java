@@ -18,6 +18,9 @@ import java.util.List;
  * @param maxRetry              재시도 횟수. 파싱 실패에만 적용된다. 타임아웃은 재시도하지 않는다
  * @param designTemperature     코스 설계 호출의 temperature
  * @param commentTemperature    코멘트 생성 호출의 temperature
+ * @param maxOutputTokens       응답 최대 토큰. 지정하지 않으면 공급자별 기본값을 쓰는데
+ *                              모델마다 기본값 차이가 커서(Nova Lite가 낮아 구조화 출력이
+ *                              중간에 잘린 적 있다) 명시적으로 고정한다
  * @param toneViolationPatterns 톤 위반 판정 문구. 걸리면 재호출 없이 템플릿 코멘트로 바꾼다
  * @param dailyCallLimit        서비스 전체(사용자 합산) 하루 LLM 호출 상한. AWS 비용 폭주 방지용 —
  *                              사용자별이 아니라 전역 합계다. 초과하면 LlmCallException을 던져
@@ -30,6 +33,7 @@ public record LlmProperties(
         int maxRetry,
         double designTemperature,
         double commentTemperature,
+        int maxOutputTokens,
         List<String> toneViolationPatterns,
         int dailyCallLimit
 ) {
