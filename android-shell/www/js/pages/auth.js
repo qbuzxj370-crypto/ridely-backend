@@ -24,6 +24,12 @@ export function render(container, params) {
   toggleBtn.addEventListener('click', () => setMode(mode === 'login' ? 'signup' : 'login'));
 
   submitBtn.addEventListener('click', async () => {
+    // 연타 방지 — 특히 회원가입은 로그인까지 이어서 두 번 호출이라 더 걸린다. 안 잠그면
+    // 연타 시 동시에 두 번 가입 요청이 나가서 하나는 성공하고 하나는 AUTH-101로 실패하는데,
+    // 실제로는 성공했는데도 에러 문구가 같이 뜨는 것처럼 보인다.
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+
     const loginId = container.querySelector('#auth-loginId').value.trim();
     const password = container.querySelector('#auth-password').value;
     errorBox.innerHTML = '';
@@ -39,6 +45,7 @@ export function render(container, params) {
       navigate(returnRoute);
     } catch (e) {
       errorBox.innerHTML = `<div class="error-banner">${e.message || '처리 중 오류가 발생했어요'}</div>`;
+      submitBtn.disabled = false;
     }
   });
 

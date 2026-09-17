@@ -1,13 +1,44 @@
 import { apiFetch, newIdempotencyKey } from '../api.js';
 import { navigate } from '../router.js';
+import { isLoggedIn } from '../auth.js';
 import state from '../state.js';
 
 export function render(container) {
+  // 이전 방문에서 고른 출발지/도착지가 그대로 남아있으면, 화면엔 "선택됨" 배지가 안 보이는데
+  // (새로 그려진 HTML이라 기본 숨김) 실제로는 재검색 없이 그 좌표로 제출돼버린다. 화면에
+  // 보이는 것과 실제로 쓰일 값을 맞추기 위해 매번 새로 들어올 때 비워둔다.
+  state.selectedStart = null;
+  state.selectedEnd = null;
+
   wireSearch(container, 'start');
   wireSearch(container, 'end');
 
   container.querySelector('#rp-use-location').addEventListener('click', () => useCurrentLocation(container));
   container.querySelector('#rp-submit').addEventListener('click', () => submit(container));
+
+  applyAvoidCheckboxForLoginState(container);
+}
+
+/**
+ * 회피 체크박스는 비회원 전용이다 — 회원은 백엔드가 이 체크박스(X-Ridely-Avoid-Danger-Zones
+ * 헤더)를 무시하고 마이페이지 설정값만 따른다(RouteController.java 주석 참고). 로그인 상태에서
+ * 체크박스를 그대로 두면 마이페이지 설정과 다르게 조작할 수 있어서 시연에서 바로 티가 난다.
+ * 로그인 상태면 실제로 적용될 마이페이지 설정값을 그대로 보여주고 잠근다.
+ */
+async function applyAvoidCheckboxForLoginState(container) {
+  const checkbox = container.querySelector('#rp-avoid');
+  const hint = container.querySelector('#rp-avoid-hint');
+  if (!isLoggedIn()) return;
+
+  checkbox.disabled = true;
+  try {
+    const settings = await apiFetch('/users/me/settings', { auth: true });
+    checkbox.checked = !!settings.avoidDangerZones;
+    hint.textContent = '로그인 상태에서는 마이페이지 설정을 따라요 (마이페이지에서 바꿀 수 있어요)';
+  } catch (e) {
+    hint.textContent = '마이페이지 설정을 불러오지 못했어요 — 저장된 설정대로 적용됩니다';
+  }
+  hint.style.display = 'block';
 }
 
 function wireSearch(container, which) {
@@ -113,8 +144,9 @@ async function submit(container) {
     body.endLng = state.selectedEnd.lng;
   }
 
+  // 회원은 백엔드가 이 헤더를 무시하고 마이페이지 설정을 쓴다 — 굳이 보내서 착각을 남기지 않는다.
   const avoid = container.querySelector('#rp-avoid').checked;
-  const headers = avoid ? { 'X-Ridely-Avoid-Danger-Zones': 'true' } : {};
+  const headers = !isLoggedIn() && avoid ? { 'X-Ridely-Avoid-Danger-Zones': 'true' } : {};
 
   submitBtn.textContent = '코스를 만드는 중... (최대 15초)';
 

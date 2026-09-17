@@ -10,7 +10,12 @@ function loadKakaoSdk() {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`;
     script.onload = () => window.kakao.maps.load(resolve);
-    script.onerror = (e) => reject(new Error('카카오맵 SDK 로드 실패: ' + e));
+    script.onerror = (e) => {
+      // 실패한 프로미스를 캐시에 남겨두면, 원인(네트워크 순간 끊김 등)이 사라진 뒤에도
+      // 이 세션 안에서는 지도가 영원히 안 뜬다 — 다음 시도가 새로 로드해볼 수 있게 지운다.
+      loadPromise = null;
+      reject(new Error('카카오맵 SDK 로드 실패: ' + e));
+    };
     document.head.appendChild(script);
   });
   return loadPromise;
