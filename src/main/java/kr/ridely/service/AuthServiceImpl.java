@@ -90,7 +90,10 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.AUTH_201);
         }
 
-        // 탈퇴·정지 계정은 자격 증명이 맞아도 로그인시키지 않는다
+        /*
+         * 정지된 계정은 자격 증명이 맞아도 로그인시키지 않는다.
+         * 탈퇴는 여기까지 오지 않는다. 행을 지우므로 위 AUTH-201에서 걸러진다.
+         */
         if (!STATUS_ACTIVE.equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.AUTH_202);
         }

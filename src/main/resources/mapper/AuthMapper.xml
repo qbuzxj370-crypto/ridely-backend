@@ -75,7 +75,11 @@
            AND revoked_at IS NULL
     </update>
 
-    <!-- 해당 사용자의 유효한 토큰 일괄 폐기 (탈퇴 등 전체 세션 종료) -->
+    <!--
+        해당 사용자의 유효한 토큰 일괄 폐기 (비밀번호 변경 등 전체 세션 종료).
+
+        탈퇴는 이 쿼리를 쓰지 않는다. app_user 행을 지우면 FK CASCADE로 함께 사라진다.
+    -->
     <update id="revokeAllRefreshTokens">
         UPDATE refresh_token
            SET revoked_at = NOW()
