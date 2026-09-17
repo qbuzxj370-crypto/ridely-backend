@@ -262,7 +262,10 @@ ridely:
       base-url: https://api.heigit.org/openrouteservice
       api-key: ${ORS_API_KEY:}
       profile: cycling-regular
-      timeout-seconds: 10
+      # AI가 고르는 경유지 수가 늘수록(Nova는 6곳까지도 고름) 실제 도로 경로 계산이
+      # 오래 걸려 10초로는 부족한 사례가 나왔다(2026-09-17, 6경유지에서 타임아웃).
+      # 20초로 늘려 여유를 준다.
+      timeout-seconds: 20
     kakao:
       local-base-url: https://dapi.kakao.com
       rest-api-key: ${KAKAO_REST_API_KEY:}
@@ -326,10 +329,12 @@ ridely:
       design-temperature: 0.2
       comment-temperature: 0.6
       # 응답 최대 토큰. 지정 안 하면 공급자 기본값을 쓰는데, 그 기본값이 모델마다 다르다.
-      # Nova Lite의 기본값이 낮아 경유지 5곳짜리 설계 JSON이 중간에 끊겨 파싱이 깨졌다
+      # Nova Lite의 기본값이 낮아 구조화 출력 JSON이 중간에 끊겨 파싱이 깨졌다
       # (닫는 ```/``` 코드블록도 못 만들고 잘림). Gemini·Claude는 기본값이 넉넉해 안 겪었다.
-      # 설계·코멘트 둘 다 이 값 하나로 충분히 여유 있게 잡는다.
-      max-output-tokens: 2048
+      # 2048로 한 번 올렸는데도 여전히 잘렸다 — Nova가 응답 전 내부 thinking에 토큰을
+      # 상당량 쓰고(BeanOutputConverter의 ThinkingTagCleaner 주석 참고) 남는 예산으로
+      # JSON을 마저 못 쓰는 것으로 보인다. thinking + 실제 출력을 다 감당하도록 더 크게 잡는다.
+      max-output-tokens: 4096
       # Coach Ridely 톤 검증. 막으려는 것은 존댓말이 아니라 공문서투다.
       # 프롬프트가 요구하는 어조는 해요체("~해봐요", "~어때요?")이고, 이 값들은
       # 관공서 안내문 어투다. 입력이 전부 공공데이터(관광공사·도로교통공단·따릉이)라
