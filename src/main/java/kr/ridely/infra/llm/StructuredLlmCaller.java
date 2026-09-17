@@ -49,6 +49,7 @@ public class StructuredLlmCaller {
 
     private final ChatClient chatClient;
     private final LlmProperties properties;
+    private final LlmCallBudget llmCallBudget;
 
     /**
      * StringTemplate 반복문의 지역 인자 이름.
@@ -73,9 +74,11 @@ public class StructuredLlmCaller {
             .endDelimiterToken(END_DELIMITER)
             .build();
 
-    public StructuredLlmCaller(ChatClient.Builder chatClientBuilder, LlmProperties properties) {
+    public StructuredLlmCaller(ChatClient.Builder chatClientBuilder, LlmProperties properties,
+                               LlmCallBudget llmCallBudget) {
         this.chatClient = chatClientBuilder.build();
         this.properties = properties;
+        this.llmCallBudget = llmCallBudget;
     }
 
     /**
@@ -92,10 +95,18 @@ public class StructuredLlmCaller {
      * @param userPrompt   지시문 프롬프트 파일. 치환자를 담는다
      * @param variables    치환자에 넣을 값
      * @param temperature  호출별 온도. 전역 설정을 덮어쓴다
-     * @throws LlmCallException 재시도까지 실패했을 때. 호출부가 fallback으로 받는다
+     * @throws LlmCallException 재시도까지 실패했을 때, 또는 오늘 전역 호출 한도를 이미 다 썼을 때.
+     *                          호출부가 fallback으로 받는다
      */
     public <T> T call(String purpose, Resource systemPrompt, Resource userPrompt,
                       Map<String, Object> variables, double temperature, Class<T> responseType) {
+
+        // 사용자별이 아니라 서비스 전체 합산 한도다 (LlmCallBudget 참조).
+        // 재시도해도 한도가 늘지 않으므로 여기서 즉시 fallback으로 보낸다.
+        if (!llmCallBudget.tryAcquire()) {
+            log.warn("LLM {} 호출 차단: 오늘 전역 호출 한도 초과", purpose);
+            throw new LlmCallException(purpose, true, "오늘 LLM 호출 한도를 초과했습니다", null);
+        }
 
         Map<String, Object> params = withLoopParameters(variables);
         int maxAttempts = Math.max(1, properties.maxRetry() + 1);

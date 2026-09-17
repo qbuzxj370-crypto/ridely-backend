@@ -19,6 +19,9 @@ import java.util.List;
  * @param designTemperature     코스 설계 호출의 temperature
  * @param commentTemperature    코멘트 생성 호출의 temperature
  * @param toneViolationPatterns 톤 위반 판정 문구. 걸리면 재호출 없이 템플릿 코멘트로 바꾼다
+ * @param dailyCallLimit        서비스 전체(사용자 합산) 하루 LLM 호출 상한. AWS 비용 폭주 방지용 —
+ *                              사용자별이 아니라 전역 합계다. 초과하면 LlmCallException을 던져
+ *                              기존 fallback 경로(규칙 기반 설계·템플릿 코멘트)로 넘어간다
  */
 @ConfigurationProperties(prefix = "ridely.ai.llm")
 public record LlmProperties(
@@ -27,6 +30,7 @@ public record LlmProperties(
         int maxRetry,
         double designTemperature,
         double commentTemperature,
-        List<String> toneViolationPatterns
+        List<String> toneViolationPatterns,
+        int dailyCallLimit
 ) {
 }
