@@ -13,4 +13,9 @@ if (window.cordova) {
   document.addEventListener('deviceready', onDeviceReady, false);
 } else {
   onDeviceReady();
+  // 서비스워커는 PWA 설치 가능 조건(매니페스트+서비스워커) 충족용이다 — Cordova WebView는
+  // 이미 설치된 앱처럼 동작하므로 등록할 이유가 없어 웹 분기에서만 시도한다.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch((e) => console.error('sw register failed', e));
+  }
 }
