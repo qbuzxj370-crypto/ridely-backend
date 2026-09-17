@@ -70,7 +70,11 @@ export function render(container) {
 
   container.querySelector('#riding-start').addEventListener('click', startRiding);
   container.querySelector('#riding-start-free').addEventListener('click', () => {
+    // dangerZones도 같이 비워야 한다 — 저장한 코스를 골랐다가(selectSavedRoute가 채워둠)
+    // 마음 바꿔 자유 주행을 누르면, state.lastRecommend만 지우고 이건 안 비워서 무관한
+    // 이전 코스의 사고다발지가 지도에 계속 그려지고 근접 알림도 그 기준으로 떴다.
     state.lastRecommend = null;
+    dangerZones = [];
     updateSelectedSummary();
     startRiding();
   });
