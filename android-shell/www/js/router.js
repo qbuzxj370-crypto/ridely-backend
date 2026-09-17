@@ -15,6 +15,12 @@ const TAB_ROUTES = ['home', 'saved-routes', 'riding', 'mypage'];
 
 let currentCleanup = null;
 
+// 자체 네비게이션 스택. window.history.back()에 의존하지 않는다 -
+// 이 WebView 환경에서 history.back() 뒤에 hashchange가 안정적으로 안 붙어서
+// (onBackInvoked는 반복 발생하는데 화면은 그대로 있는 증상), 뒤로가기를
+// "이전 해시로 되돌리기"가 아니라 "직전에 스택에 쌓인 라우트로 직접 이동"으로 바꾼다.
+const navStack = [];
+
 function parseHash() {
   const raw = window.location.hash.replace(/^#\/?/, '');
   const [route, queryStr] = raw.split('?');
@@ -53,9 +59,22 @@ function updateTabbar(route) {
   document.getElementById('tabbar').style.display = TAB_ROUTES.includes(route) ? 'flex' : 'none';
 }
 
-export function navigate(route, queryObj) {
+/** 해시를 바꾸고 필요하면 직접 렌더한다. 스택은 건드리지 않는다 (뒤로가기 전용 경로) */
+function goToHash(route, queryObj) {
   const qs = queryObj ? '?' + new URLSearchParams(queryObj).toString() : '';
-  window.location.hash = `#/${route}${qs}`;
+  const hash = `#/${route}${qs}`;
+  if (window.location.hash === hash) {
+    // 해시가 안 바뀌면 hashchange가 안 붙어서 renderRoute가 안 불린다.
+    renderRoute();
+  } else {
+    window.location.hash = hash;
+  }
+}
+
+export function navigate(route, queryObj) {
+  const { route: currentRoute } = parseHash();
+  if (currentRoute !== route) navStack.push(currentRoute);
+  goToHash(route, queryObj);
 }
 
 export function initRouter() {
@@ -65,11 +84,14 @@ export function initRouter() {
     (e) => {
       e.preventDefault();
       const { route } = parseHash();
-      if (route === 'home') {
+      if (navStack.length === 0 || route === 'home') {
         if (window.navigator.app) window.navigator.app.exitApp();
-      } else {
-        window.history.back();
+        return;
       }
+      // navigate()가 아니라 goToHash()를 쓴다 - navigate()를 쓰면 "뒤로 가기"
+      // 자체가 다시 스택에 쌓여서, home<->A를 반복 왕복할 때 스택이 안 비워진다.
+      const prevRoute = navStack.pop();
+      goToHash(prevRoute);
     },
     false
   );
