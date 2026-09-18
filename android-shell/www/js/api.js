@@ -1,17 +1,8 @@
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './token-store.js';
 
-// adb reverse tcp:8080 tcp:8080 로 기기의 localhost:8080을 PC 백엔드로 연결한다 (실기기 개발용).
-// LAN IP 직접 연결을 잠깐 시도했었는데, 실패 원인이 SecurityConfig의 CORS 처리 위치였던 게
-// 밝혀져서(2026-09-17) 원래대로 되돌렸다 — adb reverse가 원인이 아니었다.
-//
-// ⚠️ 배포 주소로 바꿀 때는 이 값 하나만 고치면 끝나는 게 아니다. 아래 세 곳을 같이 바꿔야
-// 한다 — 하나라도 빠지면 증상이 전부 "CORS 차단"으로 보여서 원인 찾기가 오래 걸린다:
-//   1. 여기 API_BASE
-//   2. www/index.html의 CSP <meta> 태그, connect-src에 있는 http://localhost:8080·
-//      http://10.0.2.2:8080 (새 주소를 추가/교체)
-//   3. EC2(배포 서버)의 CORS_ALLOWED_ORIGINS 환경변수 — application-prod.yml이 이 값으로
-//      ridely.cors.allowed-origins를 통째로 덮어쓴다 (docs/shared/BACKEND_CHANGES.md 참고)
-export const API_BASE = 'http://localhost:8080/api/v1';
+// 실배포 백엔드(EC2, CloudFront 경유). adb reverse+localhost:8080 조합은 로컬 개발용으로
+// 되돌릴 때 이 줄만 원복하면 된다.
+export const API_BASE = 'https://d2ym1ymgumwyg8.cloudfront.net/api/v1';
 
 export class ApiError extends Error {
   constructor(code, message, details, httpStatus) {

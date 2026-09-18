@@ -82,7 +82,7 @@ class ToneValidatorTest {
     }
 
     private ToneValidator validator(List<String> patterns) {
-        return new ToneValidator(new LlmProperties("gemini", 15, 1, 0.2, 0.6, patterns, 150));
+        return new ToneValidator(new LlmProperties("gemini", 15, 1, 0.2, 0.6, 2048, patterns, 150));
     }
 
     /** 나머지 필드는 깨끗하게 두고 하나만 오염시킨다 */
