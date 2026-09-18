@@ -1,5 +1,6 @@
 package kr.ridely.service;
 
+import kr.ridely.dto.tour.TourAttractionDTO;
 import kr.ridely.dto.tour.TourNearbyResponseDTO;
 
 import java.util.List;
@@ -22,4 +23,13 @@ public interface TourService {
      * @throws kr.ridely.common.BusinessException POI-001 (반경 내 결과 없음)
      */
     TourNearbyResponseDTO findNearby(double lat, double lng, int radiusM, List<String> contentTypeIds);
+
+    /**
+     * 번호로 관광지 한 건을 조회한다.
+     *
+     * 추천 응답의 경유지 중 {@code type}이 {@code TOUR_ATTRACTION}인 항목의 {@code id}가 이 번호다.
+     *
+     * @throws kr.ridely.common.BusinessException COMMON-004 (없는 번호)
+     */
+    TourAttractionDTO findById(long tourAttractionId);
 }

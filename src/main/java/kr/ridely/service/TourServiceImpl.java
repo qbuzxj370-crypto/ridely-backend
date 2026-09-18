@@ -53,4 +53,15 @@ public class TourServiceImpl implements TourService {
                 items,
                 items.size());
     }
+
+    @Override
+    public TourAttractionDTO findById(long tourAttractionId) {
+        /*
+         * 없는 번호는 POI-001이 아니라 COMMON-004다. POI-001은 「반경 안에 아무것도 없다」는
+         * 조회 조건의 문제라 반경을 넓히면 달라지지만, 이쪽은 그 번호가 존재하지 않는 것이라
+         * 요청을 어떻게 고쳐도 같은 결과다. /routes/{id} 재조회와 같은 규칙으로 맞춘다.
+         */
+        return tourSpatialDao.findById(tourAttractionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMON_004));
+    }
 }
