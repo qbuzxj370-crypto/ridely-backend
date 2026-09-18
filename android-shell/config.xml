@@ -16,12 +16,14 @@
     <preference name="SplashScreenDelay" value="1500" />
     <preference name="AutoHideSplashScreen" value="true" />
     <preference name="SplashShowOnlyFirstTime" value="false" />
-    <preference name="SplashScreenBackgroundColor" value="#FF1E7B6C" />
+    <!-- 새 로고(주황 자전거 아이콘, 배경 #FDFDFD)로 바꾸며 배경색도 맞췄다.
+         기존 #FF1E7B6C(청록)는 이전 텍스트 로고용 브랜드 컬러라 새 로고와 안 맞았다. -->
+    <preference name="SplashScreenBackgroundColor" value="#FFFDFDFD" />
     <!-- Android 12+는 위의 <splash> 태그를 더 이상 안 본다(cordova-android 경고: deprecated).
          대신 이 preference로 지정해야 시스템 스플래시(SplashScreen API)에 코르도바 기본 로고 대신
          실제 앱 아이콘이 뜬다. -->
     <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/icon.png" />
-    <preference name="AndroidWindowSplashScreenBackground" value="#FF1E7B6C" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#FFFDFDFD" />
     <platform name="android">
         <!-- 백엔드가 로컬 개발 중 https가 아닌 http(localhost)라서 평문 통신을 허용한다.
              경쟁작 MVP 범위라 지금은 전체 허용, 배포 임박 시 도메인 단위로 좁힌다. -->
