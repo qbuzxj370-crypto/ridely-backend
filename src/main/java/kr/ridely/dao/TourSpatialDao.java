@@ -220,8 +220,8 @@ public class TourSpatialDao {
         dto.setAddr1(rs.getString("addr1"));
         dto.setAddr2(rs.getString("addr2"));
         dto.setTel(rs.getString("tel"));
-        dto.setFirstImageUrl(rs.getString("first_image_url"));
-        dto.setThumbnailUrl(rs.getString("thumbnail_url"));
+        dto.setFirstImageUrl(toHttps(rs.getString("first_image_url")));
+        dto.setThumbnailUrl(toHttps(rs.getString("thumbnail_url")));
         dto.setOverview(rs.getString("overview"));
         dto.setEventStartDate(rs.getObject("event_start_date", java.time.LocalDate.class));
         dto.setEventEndDate(rs.getObject("event_end_date", java.time.LocalDate.class));
@@ -229,5 +229,18 @@ public class TourSpatialDao {
         // NULL인데, 0으로 들어가면 화면이 "0m"로 읽는다. getObject라야 null이 그대로 온다
         dto.setDistanceM(rs.getObject("distance_m", Integer.class));
         return dto;
+    }
+
+    /**
+     * 이미지 주소의 스킴을 https로 맞춘다.
+     *
+     * TourAPI가 내려주는 값이 {@code http://tong.visitkorea.or.kr/...}이다. 앱은 https에서 뜨므로(Cordova는 https://localhost, 웹은 CloudFront) http 이미지는 혼합 콘텐츠로 막힌다. {@code usesCleartextTraffic}은 안드로이드 네트워크 계층 설정이라 이것과 무관하다.
+     *
+     * 브라우저가 이미지에 한해 https로 올려 주기도 하지만 버전에 따라 다르고 실패하면 조용히 차단된다. 그 동작에 기대지 않는다. 같은 호스트가 https를 받는 것은 확인했다(2026-09-18).
+     *
+     * 적재 시점이 아니라 조회 시점에 바꾸는 이유는 이미 들어간 행을 건드리지 않기 위해서다. 원본 값은 그대로 두고 내보낼 때만 맞춘다.
+     */
+    private static String toHttps(String url) {
+        return url != null && url.startsWith("http://") ? "https://" + url.substring(7) : url;
     }
 }
