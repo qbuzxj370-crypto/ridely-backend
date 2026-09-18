@@ -13,6 +13,9 @@ const routes = {
 
 const TAB_ROUTES = ['home', 'saved-routes', 'riding', 'mypage'];
 
+// 탭바가 없는 화면 중 헤더에 뒤로가기가 필요한 라우트. 지금은 로그인/회원가입 화면뿐이다.
+const HEADER_BACK_ROUTES = ['auth'];
+
 let currentCleanup = null;
 
 // 자체 네비게이션 스택. window.history.back()에 의존하지 않는다 -
@@ -20,6 +23,25 @@ let currentCleanup = null;
 // (onBackInvoked는 반복 발생하는데 화면은 그대로 있는 증상), 뒤로가기를
 // "이전 해시로 되돌리기"가 아니라 "직전에 스택에 쌓인 라우트로 직접 이동"으로 바꾼다.
 const navStack = [];
+
+// 뒤로가기로 종료되는 지점(navStack 비었거나 홈)에서 한 번에 안 꺼지고
+// 짧은 시간 안에 한 번 더 눌러야 꺼지게 한다 — 실수로 앱이 바로 닫히는 걸 막는다.
+const EXIT_CONFIRM_WINDOW_MS = 2000;
+let lastExitPressAt = 0;
+
+function showExitToast() {
+  let toast = document.getElementById('exit-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'exit-toast';
+    toast.className = 'exit-toast';
+    toast.textContent = '한 번 더 누르면 종료됩니다';
+    document.body.appendChild(toast);
+  }
+  toast.classList.add('show');
+  clearTimeout(showExitToast.hideTimer);
+  showExitToast.hideTimer = setTimeout(() => toast.classList.remove('show'), EXIT_CONFIRM_WINDOW_MS);
+}
 
 function parseHash() {
   const raw = window.location.hash.replace(/^#\/?/, '');
@@ -49,6 +71,7 @@ async function renderRoute() {
   }
 
   updateTabbar(route);
+  updateHeaderBack(route);
   container.scrollTop = 0;
 }
 
@@ -57,6 +80,11 @@ function updateTabbar(route) {
     btn.classList.toggle('active', btn.dataset.route === route);
   });
   document.getElementById('tabbar').style.display = TAB_ROUTES.includes(route) ? 'flex' : 'none';
+}
+
+function updateHeaderBack(route) {
+  const btn = document.getElementById('header-back-btn');
+  if (btn) btn.style.display = HEADER_BACK_ROUTES.includes(route) ? 'inline-block' : 'none';
 }
 
 /** 해시를 바꾸고 필요하면 직접 렌더한다. 스택은 건드리지 않는다 (뒤로가기 전용 경로) */
@@ -79,13 +107,22 @@ export function navigate(route, queryObj) {
 
 export function initRouter() {
   window.addEventListener('hashchange', renderRoute);
+  // returnRoute(예: 'riding')로 보내면 아직 로그인 전이라 requireLoginOrRedirect가
+  // 다시 이 화면으로 튕겨낸다 — 헤더 뒤로가기는 항상 홈으로 보낸다.
+  document.getElementById('header-back-btn').addEventListener('click', () => navigate('home'));
   document.addEventListener(
     'backbutton',
     (e) => {
       e.preventDefault();
       const { route } = parseHash();
       if (navStack.length === 0 || route === 'home') {
-        if (window.navigator.app) window.navigator.app.exitApp();
+        const now = Date.now();
+        if (now - lastExitPressAt < EXIT_CONFIRM_WINDOW_MS) {
+          if (window.navigator.app) window.navigator.app.exitApp();
+          return;
+        }
+        lastExitPressAt = now;
+        showExitToast();
         return;
       }
       // navigate()가 아니라 goToHash()를 쓴다 - navigate()를 쓰면 "뒤로 가기"

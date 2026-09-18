@@ -24,11 +24,23 @@ html, body {
   min-height: var(--header-height);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 16px;
   background: var(--color-surface);
   border-bottom: 1px solid #e7ebe9;
   font-weight: 700;
   font-size: 17px;
+}
+
+.header-back-btn {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 6px;
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 #app {

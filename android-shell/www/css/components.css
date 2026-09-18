@@ -101,3 +101,24 @@
   padding: 12px 0;
   border-bottom: 1px solid #eef2f1;
 }
+
+/* 뒤로가기로 앱 종료 확인용 — router.js의 backbutton 핸들러가 씀 */
+.exit-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-height) + 16px);
+  transform: translateX(-50%);
+  background: rgba(26, 31, 30, 0.9);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.exit-toast.show {
+  opacity: 1;
+}
