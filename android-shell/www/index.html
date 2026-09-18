@@ -20,6 +20,11 @@
     <meta name="msapplication-tap-highlight" content="no">
     <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width, viewport-fit=cover">
     <meta name="color-scheme" content="light">
+    <!-- PWA — 스토어 등록 없이도 모바일 Chrome에서 "홈 화면에 추가"로 앱처럼 쓸 수 있게 한다
+         (docs/shared/0918/MOBILE_WEB_FALLBACK_PLAN.md). Cordova 빌드에서는 그냥 무시되는
+         메타데이터라 따로 분기할 필요 없다. -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1E7B6C">
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">

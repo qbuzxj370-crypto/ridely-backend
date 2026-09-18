@@ -42,6 +42,9 @@ export function render(container) {
 
   async function searchInfra(cont, mapInstance, center) {
     const summaryEl = cont.querySelector('#infra-summary-body');
+    // 카카오맵 첫 로딩(몇 초 걸릴 수 있음)이 끝나기 전에 사용자가 다른 탭으로 넘어가면,
+    // 이 콜백이 뒤늦게 실행될 때 cont는 이미 다른 화면의 DOM이라 이 요소가 없다.
+    if (!summaryEl) return;
     const radiusM = parseInt(cont.querySelector('#home-radius').value, 10) || 1000;
     const types = Array.from(cont.querySelectorAll('.home-type:checked')).map((el) => el.value);
 

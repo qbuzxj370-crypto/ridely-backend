@@ -17,6 +17,19 @@ export function newIdempotencyKey() {
   return crypto.randomUUID();
 }
 
+/**
+ * 응답 본문을 JSON으로 읽는다. 백엔드가 죽어있거나 앞단(프록시 등)이 502를 HTML로
+ * 내려주면 res.json()이 SyntaxError를 던지는데, 그걸 그대로 두면 화면에
+ * "Unexpected token '<' ..." 같은 원문이 그대로 찍힌다. ApiError로 바꿔서 던진다.
+ */
+async function parseJsonSafely(res) {
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new ApiError('COMMON-500', '서버와 통신하지 못했어요', null, res.status);
+  }
+}
+
 let refreshInFlight = null;
 
 async function rawRefresh() {
@@ -28,7 +41,7 @@ async function rawRefresh() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   });
-  const body = await res.json();
+  const body = await parseJsonSafely(res);
   if (!body.success) {
     clearTokens();
     throw new ApiError(body.error?.code, body.error?.message, body.error?.details, res.status);
@@ -66,7 +79,7 @@ export async function apiFetch(path, options = {}) {
 
     // 204 No Content
     if (res.status === 204) return { res, body: { success: true, data: null, error: null } };
-    const json = await res.json();
+    const json = await parseJsonSafely(res);
     return { res, body: json };
   };
 

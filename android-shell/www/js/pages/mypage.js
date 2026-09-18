@@ -1,6 +1,7 @@
 import { apiFetch } from '../api.js';
 import { requireLoginOrRedirect, logout } from '../auth.js';
 import { navigate } from '../router.js';
+import { getSummary } from '../ride-storage.js';
 
 export function render(container) {
   if (!requireLoginOrRedirect('mypage')) return;
@@ -14,18 +15,16 @@ export function render(container) {
   });
 }
 
-async function loadSummary(container) {
+// 서버 GET /riding-sessions/summary 대신 로컬 기록을 직접 합산한다
+// (docs/shared/0918/LOCATION_PRIVACY_ARCHITECTURE.md) — 라이딩 기록 자체가 서버에 없다.
+function loadSummary(container) {
   const el = container.querySelector('#mp-summary');
-  try {
-    const s = await apiFetch('/riding-sessions/summary', { auth: true });
-    el.innerHTML = `
-      <strong>누적 라이딩</strong>
-      <div>총 ${s.totalRideCount}회 · ${s.totalDistanceKm}km</div>
-      <div>${s.avgSpeedKmh != null ? '평균 ' + s.avgSpeedKmh + 'km/h' : '평균 속도 -'}</div>
-    `;
-  } catch (e) {
-    el.innerHTML = `<div class="error-banner">${e.message}</div>`;
-  }
+  const s = getSummary();
+  el.innerHTML = `
+    <strong>누적 라이딩</strong>
+    <div>총 ${s.totalRideCount}회 · ${s.totalDistanceKm}km</div>
+    <div>${s.avgSpeedKmh != null ? '평균 ' + s.avgSpeedKmh + 'km/h' : '평균 속도 -'}</div>
+  `;
 }
 
 async function loadSettings(container) {

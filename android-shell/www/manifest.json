@@ -1,0 +1,15 @@
+{
+  "name": "Ridely — 한강 라이딩 코스 추천",
+  "short_name": "Ridely",
+  "description": "한강 자전거길 맞춤 라이딩 코스 추천 서비스",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F9F8",
+  "theme_color": "#1E7B6C",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
