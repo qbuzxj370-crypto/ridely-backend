@@ -41,7 +41,11 @@ class TourDetailTest extends AbstractIntegrationTest {
         매점_번호 = insertMinimal();
     }
 
-    /** 사진·주소·전화·개요가 모두 있는 콘텐츠 */
+    /**
+     * 사진·주소·전화·개요가 모두 있는 콘텐츠.
+     *
+     * 이미지 주소를 http로 넣는다 — TourAPI가 실제로 그렇게 내려주고, 적재된 값도 그대로다.
+     */
     private long insertFull() {
         return jdbcClient.sql("""
                         INSERT INTO tour_attraction
@@ -50,8 +54,8 @@ class TourDetailTest extends AbstractIntegrationTest {
                         VALUES ('2001', '12', '선유도공원',
                                 ST_SetSRID(ST_MakePoint(126.8997, 37.5434), 4326),
                                 '서울특별시 영등포구 선유로 343', '선유도공원', '02-2631-9368',
-                                'https://example.test/seonyudo.jpg',
-                                'https://example.test/seonyudo_thumb.jpg',
+                                'http://tong.visitkorea.or.kr/cms/resource/92/2781792_image2_1.jpg',
+                                'http://tong.visitkorea.or.kr/cms/resource/92/2781792_image3_1.jpg',
                                 '한강 위의 정수장을 재생한 생태공원이다.')
                         RETURNING tour_attraction_id
                         """)
@@ -81,11 +85,23 @@ class TourDetailTest extends AbstractIntegrationTest {
                 // 경유지(waypoints_json)가 들고 있지 않은 것들이 여기서 채워진다
                 .andExpect(jsonPath("$.data.addr1").value("서울특별시 영등포구 선유로 343"))
                 .andExpect(jsonPath("$.data.tel").value("02-2631-9368"))
-                .andExpect(jsonPath("$.data.firstImageUrl").value("https://example.test/seonyudo.jpg"))
                 .andExpect(jsonPath("$.data.overview").value("한강 위의 정수장을 재생한 생태공원이다."))
                 // 좌표는 geom에서 다시 꺼내 온다
                 .andExpect(jsonPath("$.data.lat").value(37.5434))
                 .andExpect(jsonPath("$.data.lng").value(126.8997));
+    }
+
+    @Test
+    @DisplayName("이미지 주소를 https로 바꿔 내보낸다")
+    void 이미지_주소_https_변환() throws Exception {
+        // 적재된 값은 http다. 앱이 https에서 뜨므로 그대로 내보내면 혼합 콘텐츠로 막힌다.
+        // 브라우저가 올려 주는 동작에 기대지 않고 서버에서 맞춘다.
+        mockMvc.perform(get(URL + 선유도공원_번호))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.firstImageUrl")
+                        .value("https://tong.visitkorea.or.kr/cms/resource/92/2781792_image2_1.jpg"))
+                .andExpect(jsonPath("$.data.thumbnailUrl")
+                        .value("https://tong.visitkorea.or.kr/cms/resource/92/2781792_image3_1.jpg"));
     }
 
     @Test
