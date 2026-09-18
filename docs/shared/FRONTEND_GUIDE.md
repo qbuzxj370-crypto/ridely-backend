@@ -281,6 +281,7 @@ DELETE /api/v1/users/me
 | Method | 경로 | 설명 |
 |---|---|---|
 | GET | `/api/v1/tours/nearby` | 주변 관광지 조회 |
+| GET | `/api/v1/tours/{tourAttractionId}` | 관광지 상세 조회 |
 
 ```
 GET /api/v1/tours/nearby?lat=37.5434&lng=126.8997&radiusM=2000&contentTypeIds=12
@@ -297,6 +298,39 @@ GET /api/v1/tours/nearby?lat=37.5434&lng=126.8997&radiusM=2000&contentTypeIds=12
 
 현재 적재 범위는 **한강 서울 구간**(아라한강갑문~잠실)이다. 그 밖의 지역은 `POI-001`이 온다.
 지도 초기 위치를 한강 근처로 두면 확인하기 좋다. (예: 선유도공원 `37.5434, 126.8997`)
+
+#### 상세 조회
+
+```
+GET /api/v1/tours/12
+```
+
+**추천 응답의 `waypoints` 중 `type`이 `TOUR_ATTRACTION`인 항목의 `id`를 그대로 넣는다.** 목록 조회가 주는 `tourAttractionId`도 같은 값이다.
+
+```json
+{
+  "tourAttractionId": 12,
+  "contentId": "2781792",
+  "contentTypeId": "12",
+  "title": "선유도공원",
+  "lat": 37.5434, "lng": 126.8997,
+  "addr1": "서울특별시 영등포구 선유로 343",
+  "tel": "02-2631-9368",
+  "firstImageUrl": "https://tong.visitkorea.or.kr/cms/resource/92/2781792_image2_1.jpg",
+  "thumbnailUrl": "https://tong.visitkorea.or.kr/cms/resource/92/2781792_image3_1.jpg",
+  "overview": "한강 위의 정수장을 재생한 생태공원이다."
+}
+```
+
+⚠️ **사진·주소·전화·개요가 없는 콘텐츠가 많다.** 원본에 값이 없으면 **필드 자체가 응답에서 빠지므로**(2장의 `non_null` 규칙) `=== null` 비교는 실패한다. 필드 유무로 판단할 것.
+
+⚠️ **`distanceM`은 담기지 않는다.** 기준점 없이 한 건을 읽는 것이라 거리가 성립하지 않는다. 거리가 필요하면 `/tours/nearby`를 쓴다.
+
+이미지 주소는 **서버가 `https`로 바꿔서 내보낸다.** TourAPI 원본은 `http://tong.visitkorea.or.kr/...`인데 앱이 https에서 뜨므로 그대로면 혼합 콘텐츠로 막힌다. 그래서 받은 값을 손댈 필요가 없다. 다만 `index.html`의 CSP `img-src`에 `https://tong.visitkorea.or.kr`을 넣어야 표시된다.
+
+| 에러 | 뜻 |
+|---|---|
+| `COMMON-004` (404) | 없는 번호. 반경 문제인 `POI-001`과 다르다 — 요청을 고쳐도 같은 결과다 |
 
 ### 인프라 POI (토큰 불필요)
 
