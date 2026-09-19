@@ -21,7 +21,7 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 | # | 발견 | 계획에 미치는 영향 |
 |---|---|---|
 | 1 | 명세는 「`map.js`의 기존 함수 재사용」이라 했지만 **지도 이동 함수가 없다.** `map.js`는 마커·폴리라인·폴리곤·`fitBounds`뿐이고, `riding.js`가 `map.setCenter`를 직접 쓴다 | `map.js`에 `panTo(map, lat, lng)` 헬퍼를 **새로 추가** |
-| 2 | `route-result.js`의 `initMap()`이 지도 객체와 마커를 **밖으로 안 돌려준다**(`addMarker` 반환값도 버림) | 목록 클릭 → 마커 이동을 하려면 `initMap`이 `map`과 마커 배열을 반환/보관하도록 구조 변경 |
+| 2 | `route-result.js`의 `initMap()`이 지도 객체와 마커를 **밖으로 안 돌려준다**(`addMarker` 반환값도 버림) | 목록 클릭 → 지도 이동을 하려면 `initMap`이 `map`을 반환하도록 변경. **마커 객체 보관은 불필요**(`panTo`에 경유지 좌표만 넘기면 됨 — 구현하면서 계획을 단순화) |
 | 3 | `WaypointDTO`에는 `facilityType`이 없다. `ROUTE_FACILITY`가 급수대·화장실·인증센터를 한데 묶어 내려온다 | 배지 라벨은 `ROUTE_FACILITY` → 「편의시설」로 통칭 (세부 구분 불가) |
 | 4 | `GET /routes/{id}`도 같은 `RouteRecommendResponseDTO`를 돌려주고 `waypoints_json`(type·id·reason 포함)이 그대로 저장돼 있다 | 저장한 코스로 라이딩을 시작해도 근접 안내가 **추가 API 없이** 동작 |
 | 5 | `riding.js`의 `saveProgress()`는 `alertedZones`(사고다발지 인덱스)만 저장한다 | 앱이 죽었다 재개될 때 이미 알린 관광지를 또 알리지 않으려면 **`alertedTours`도 저장·복구**해야 함 |
@@ -56,7 +56,7 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 ## 작업 단위 (단위별 add & commit, push는 마지막에)
 
 - [x] 1. **기반** — `index.html` CSP `img-src`에 `https://tong.visitkorea.or.kr` 추가, `map.js`에 `panTo` 추가, `components.css`에 `.info-banner`·경유지 목록용 스타일
-- [ ] 2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
+- [x] 2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
 - [ ] 3. **관광지 상세 카드** — 렌더링을 재사용 모듈 `js/tour-card.js`로 만든다. `TOUR_ATTRACTION` 항목 클릭 시 `GET /tours/{id}` → 카드 펼침 (썸네일·제목·주소·전화·개요, 없는 필드는 필드 유무로 판단, `COMMON-004`/네트워크 오류 처리, 같은 항목 재클릭 시 접기, 응답 캐시)
 - [ ] 4. **홈 주변 검색에 관광지 추가** — `home.html`에 「관광지」 체크박스와 `#home-tour-detail` 카드 자리, `home.js`에 `/tours/nearby` 병렬 호출·`POI-001` 0건 처리·마커·클릭 시 `tour-card.js`로 카드 표시, `map.js`에 `addTourMarker`
 - [ ] 5. **라이딩 근접 안내** — `riding.html`에 슬롯 추가, `riding.js`에 `alertedTours`·`checkTourProximity()`, `saveProgress`/`resumeInterruptedSession`에 저장·복구, 라이딩 시작 시 초기화
