@@ -1,4 +1,5 @@
 import { createMap, addMarker, addTourMarker, addMeMarker } from '../map.js';
+import { escapeHtml } from '../dom.js';
 import { apiFetch } from '../api.js';
 import { buildTourCard } from '../tour-card.js';
 import { loadAllInfra, filterNearby } from '../infra-store.js';
@@ -51,12 +52,15 @@ export function render(container) {
   // 인프라·관광지 두 요청이 나가므로 검색을 연달아 누르면 늦게 온 옛 응답이 새 결과를 덮을
   // 수 있다. 가장 최근 검색의 응답만 화면에 반영한다.
   let searchSeq = 0;
+  // 화면을 떠난 뒤(라우터가 cleanup을 부른 뒤)에 늦게 도착한 응답이 이미 사라진 화면의 지도·DOM을
+  // 건드리거나 불필요한 요청을 이어가지 않게 한다.
+  let disposed = false;
 
   container.querySelector('#home-tour-close').addEventListener('click', hideTourDetail);
 
   initMap(container).then((m) => {
     map = m;
-    if (map) searchInfra(container, map, DEFAULT_CENTER);
+    if (map && !disposed) searchInfra(container, map, DEFAULT_CENTER);
   });
 
   wireLocationSearch(container, () => map, (nextMap) => { map = nextMap; }, (marker) => {
@@ -115,7 +119,8 @@ export function render(container) {
       say('지도를 불러오지 못해 표시할 수 없어요');
       return;
     }
-    const radiusM = Math.min(parseInt(cont.querySelector('#home-radius').value, 10) || 1000, 5000);
+    // 입력란의 min/max는 직접 타이핑한 값을 막지 못한다 — 0이나 음수, 5000 초과를 화면 안내(100~5000)에 맞춘다
+    const radiusM = Math.max(100, Math.min(parseInt(cont.querySelector('#home-radius').value, 10) || 1000, 5000));
     const types = Array.from(cont.querySelectorAll('.home-type:checked')).map((el) => el.value);
     if (!types.length) {
       say('표시할 인프라 종류를 하나 이상 선택해주세요');
@@ -129,20 +134,20 @@ export function render(container) {
     try {
       position = await getCurrentPosition();
     } catch (e) {
-      if (seq === searchSeq) say(describeGeoError(e));
+      if (!disposed && seq === searchSeq) say(describeGeoError(e));
       return;
     }
-    if (seq !== searchSeq) return;
+    if (disposed || seq !== searchSeq) return;
 
     say('주변 인프라를 불러오는 중...');
     let all;
     try {
       all = await loadAllInfra();
     } catch (e) {
-      if (seq === searchSeq) say('인프라 정보를 불러오지 못했어요 (' + ((e && e.message) || '오류') + ')');
+      if (!disposed && seq === searchSeq) say('인프라 정보를 불러오지 못했어요 (' + ((e && e.message) || '오류') + ')');
       return;
     }
-    if (seq !== searchSeq) return;
+    if (disposed || seq !== searchSeq) return;
 
     const { latitude: lat, longitude: lng } = position.coords;
     const nearby = filterNearby(all.items, lat, lng, radiusM, types);
@@ -196,7 +201,7 @@ export function render(container) {
       : Promise.resolve(null);
     const tourRequest = includeTours ? fetchNearbyTours(center, radiusM) : Promise.resolve(null);
     const [infra, tours] = await Promise.allSettled([infraRequest, tourRequest]);
-    if (seq !== searchSeq) return;
+    if (disposed || seq !== searchSeq) return;
 
     const infraFailed = types.length > 0 && infra.status === 'rejected';
     const toursFailed = includeTours && tours.status === 'rejected';
@@ -238,10 +243,15 @@ export function render(container) {
     } catch (e) {
       console.error('kakao map load failed', e);
       const box = container.querySelector('#home-map');
-      if (box) box.outerHTML = `<div class="error-banner">지도를 불러오지 못했어요: ${e.message}</div>`;
+      if (box) box.outerHTML = `<div class="error-banner">지도를 불러오지 못했어요: ${escapeHtml(e.message)}</div>`;
       return null;
     }
   }
+
+  // 라우터가 다른 화면으로 이동할 때 호출한다
+  return function cleanup() {
+    disposed = true;
+  };
 }
 
 /** 장소 검색으로 지도를 이동한다 — route-plan.js의 검색 패턴과 동일 */
@@ -266,7 +276,7 @@ function wireLocationSearch(container, getMap, setMap, setCenterMarker) {
         const row = document.createElement('div');
         row.className = 'list-item';
         row.style.cursor = 'pointer';
-        row.innerHTML = `<span>${place.placeName}${place.inServiceArea ? '' : ' <span class="badge badge-danger">지역 밖</span>'}</span>`;
+        row.innerHTML = `<span>${escapeHtml(place.placeName)}${place.inServiceArea ? '' : ' <span class="badge badge-danger">지역 밖</span>'}</span>`;
         row.addEventListener('click', () => {
           const map = getMap();
           if (!map) return;
@@ -281,7 +291,7 @@ function wireLocationSearch(container, getMap, setMap, setCenterMarker) {
         resultsBox.appendChild(row);
       });
     } catch (e) {
-      resultsBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
+      resultsBox.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
     }
   });
 }

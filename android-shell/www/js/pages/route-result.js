@@ -2,6 +2,7 @@ import { createMap, addMarker, drawPolyline, drawDangerZonePolygon, fitBounds, p
 import { apiFetch } from '../api.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import state from '../state.js';
+import { escapeHtml } from '../dom.js';
 import { fetchTourDetail, buildTourCard } from '../tour-card.js';
 
 // 백엔드 WaypointDTO.type → 배지 라벨. ROUTE_FACILITY는 급수대·화장실·인증센터가 한 종류로
@@ -107,7 +108,8 @@ function renderWaypoints(container, waypoints, getMap) {
       item.appendChild(reason);
     }
 
-    const toggleDetail = wp.type === 'TOUR_ATTRACTION' ? attachTourDetail(item, head, wp) : null;
+    // 번호가 없으면 상세를 조회할 수 없다(/tours/undefined) — 펼침 없이 목록 항목으로만 둔다
+    const toggleDetail = wp.type === 'TOUR_ATTRACTION' && wp.id != null ? attachTourDetail(item, head, wp) : null;
 
     item.addEventListener('click', (e) => {
       // 펼쳐진 상세 카드 안을 눌렀을 때(글 선택 등)는 항목 클릭으로 치지 않는다
@@ -208,7 +210,7 @@ async function initMap(container, route, dangerZones) {
   } catch (e) {
     console.error('route map render failed', e);
     const box = container.querySelector('#rr-map');
-    if (box) box.outerHTML = `<div class="error-banner">경로 지도를 불러오지 못했어요: ${e.message}</div>`;
+    if (box) box.outerHTML = `<div class="error-banner">경로 지도를 불러오지 못했어요: ${escapeHtml(e.message)}</div>`;
     return null;
   }
 }

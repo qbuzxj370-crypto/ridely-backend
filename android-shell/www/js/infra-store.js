@@ -11,6 +11,10 @@ import { haversineM } from './geo.js';
 
 const STORAGE_KEY = 'ridely.infra.all';
 
+// 저장 형식이 바뀌면(항목 필드 추가·삭제 등) 이 숫자를 올린다. 다르면 저장본을 없는 셈 치고 새로
+// 받는다 — 앱을 업데이트했는데 옛 형식의 24시간짜리 저장본이 새 코드에 섞여 들어가는 것을 막는다.
+const STORAGE_VERSION = 1;
+
 // 폰에 저장한 목록을 이 시간 동안은 서버를 안 부르고 그대로 쓴다. 적재 데이터는 가끔만 바뀐다.
 // 서버 응답의 Cache-Control(1시간)과는 별개다 — 그건 브라우저 HTTP 캐시, 이건 우리가 저장한 사본이다.
 const FRESH_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +31,8 @@ function readStored() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw);
-    if (!value || typeof value.savedAt !== 'number' || !Array.isArray(value.items)) return null;
+    if (!value || value.version !== STORAGE_VERSION
+      || typeof value.savedAt !== 'number' || !Array.isArray(value.items)) return null;
     return value;
   } catch (e) {
     return null; // 깨진 저장본은 없는 셈 친다 — 새로 받으면 덮어쓴다
@@ -63,7 +68,7 @@ export function loadAllInfra({ force = false } = {}) {
     try {
       const data = await apiFetch('/pois/all');
       const items = (data && data.items) || [];
-      const fresh = { savedAt: Date.now(), items };
+      const fresh = { version: STORAGE_VERSION, savedAt: Date.now(), items };
       // 빈 목록은 저장하지 않는다. 적재 전이거나 서버 이상일 수 있는데, 그걸 24시간 신선한
       // 사본으로 굳히면 데이터가 생겨도 하루 동안 아무것도 안 보인다.
       if (items.length > 0) {

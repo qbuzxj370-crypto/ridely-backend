@@ -11,10 +11,24 @@ export function getCurrentPosition() {
       reject(new Error('이 기기에서는 위치 기능을 쓸 수 없어요'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
+    // maximumAge: 30초 안에 읽은 위치는 재사용 — 연타로 GPS를 매번 새로 켜지 않는다
+    navigator.geolocation.getCurrentPosition(resolve, (error) => {
+      // 실내·건물 사이에서는 GPS 위성 신호를 못 잡아 시간 초과(3)·위치 불가(2)가 잘 난다. 「내 주변
+      // 시설」은 반경 수백 m~수 km 단위라 기지국·Wi-Fi 기반의 거친 위치로도 충분하므로, 정밀
+      // 모드가 실패하면 그 모드로 한 번 더 시도한다. 권한 거부(1)는 다시 해도 같아서 바로 실패시킨다.
+      if (error && (error.code === 2 || error.code === 3)) {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 60000,
+        });
+        return;
+      }
+      reject(error);
+    }, {
       enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 30000, // 30초 안에 읽은 위치는 재사용 — 연타로 GPS를 매번 새로 켜지 않는다
+      timeout: 8000,
+      maximumAge: 30000,
     });
   });
 }
