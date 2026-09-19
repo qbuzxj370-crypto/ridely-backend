@@ -7,12 +7,15 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import io.swagger.v3.oas.annotations.Parameter;
 import kr.ridely.common.ApiResponse;
+import kr.ridely.dto.tour.TourAttractionDTO;
 import kr.ridely.dto.tour.TourNearbyResponseDTO;
 import kr.ridely.service.TourService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,6 +74,27 @@ public class TourController {
 
         return ApiResponse.ok(
                 tourService.findNearby(lat, lng, radiusM, parseContentTypeIds(contentTypeIds)));
+    }
+
+    @Operation(summary = "관광지 상세 조회",
+            description = """
+                    번호로 관광지 한 건을 읽는다. **추천 응답의 `waypoints` 중 `type`이 `TOUR_ATTRACTION`인
+                    항목의 `id`를 그대로 넣으면 된다.** 목록 조회(`/tours/nearby`)의 `tourAttractionId`도 같은 값이다.
+
+                    사진·주소·전화·개요는 원본에 없는 콘텐츠가 많다. **없으면 응답에서 그 필드가 통째로 빠지므로**
+                    값이 `null`인지 보지 말고 필드 유무로 판단한다.
+
+                    `distanceM`은 담기지 않는다. 기준점 없이 한 건을 읽는 것이라 거리가 성립하지 않는다.
+                    거리가 필요하면 `/tours/nearby`를 쓴다.
+
+                    - 없는 번호: COMMON-004
+                    """)
+    @GetMapping("/{tourAttractionId}")
+    public ApiResponse<TourAttractionDTO> detail(
+            @Parameter(description = "관광지 번호. 추천 경유지의 id 또는 목록 조회의 tourAttractionId")
+            @PathVariable long tourAttractionId) {
+
+        return ApiResponse.ok(tourService.findById(tourAttractionId));
     }
 
     /** "12,14" → ["12", "14"]. 빈 값이면 서비스의 기본값을 쓰도록 빈 목록을 넘긴다 */

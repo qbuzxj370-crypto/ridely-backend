@@ -22,14 +22,14 @@ docker compose up -d
 # on Windows:
 ./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local
 
-# build (CI packages with -DskipTests; tests are NOT run in CI, see .github/workflows/deploy.yml)
+# build (deploy.yml packages with -DskipTests; ci.yml already ran ./mvnw -B verify on the PR)
 ./mvnw clean package
 
 # run all tests (spins up a shared static Testcontainers PostgreSQL/PostGIS container — Docker must be running)
 ./mvnw test
 
 # run a single test class / method
-./mvnw test -Dtest=RouteRecommendServiceImplTest
+./mvnw test -Dtest=RidingSummaryTest
 ./mvnw test -Dtest=CourseDesignResolverTest#resolvesFallbackWhenLlmFails
 
 # health check

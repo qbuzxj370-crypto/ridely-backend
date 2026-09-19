@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 관광 콘텐츠 공간 조회 DAO.
@@ -169,6 +170,45 @@ public class TourSpatialDao {
                 .list();
     }
 
+    /**
+     * 번호로 관광 콘텐츠 한 건을 조회한다.
+     *
+     * 추천 응답의 경유지에는 이름과 좌표만 실려 있다(waypoints_json). 사진·주소·전화·개요는 여기서 채운다.
+     *
+     * distanceM은 null로 둔다. 기준점 없이 한 건을 읽는 것이라 「무엇으로부터의 거리」가 성립하지 않는다. 0으로 채우면 화면이 「0m」로 읽는다.
+     */
+    public Optional<TourAttractionDTO> findById(long tourAttractionId) {
+        /*
+         * distance_m을 NULL로 뽑는 이유는 mapRow를 그대로 쓰기 위해서다. 컬럼이 없으면
+         * ResultSet에서 찾지 못해 깨지고, 매퍼를 따로 만들면 같은 setter 열다섯 줄이 복사된다.
+         */
+        String sql = """
+                SELECT
+                    tour_attraction_id,
+                    content_id,
+                    content_type_id,
+                    title,
+                    ST_Y(geom) AS lat,
+                    ST_X(geom) AS lng,
+                    addr1,
+                    addr2,
+                    tel,
+                    first_image_url,
+                    thumbnail_url,
+                    overview,
+                    event_start_date,
+                    event_end_date,
+                    NULL::int AS distance_m
+                FROM tour_attraction
+                WHERE tour_attraction_id = :tourAttractionId
+                """;
+
+        return jdbcClient.sql(sql)
+                .param("tourAttractionId", tourAttractionId)
+                .query(TourSpatialDao::mapRow)
+                .optional();
+    }
+
     private static TourAttractionDTO mapRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         TourAttractionDTO dto = new TourAttractionDTO();
         dto.setTourAttractionId(rs.getLong("tour_attraction_id"));
@@ -180,12 +220,27 @@ public class TourSpatialDao {
         dto.setAddr1(rs.getString("addr1"));
         dto.setAddr2(rs.getString("addr2"));
         dto.setTel(rs.getString("tel"));
-        dto.setFirstImageUrl(rs.getString("first_image_url"));
-        dto.setThumbnailUrl(rs.getString("thumbnail_url"));
+        dto.setFirstImageUrl(toHttps(rs.getString("first_image_url")));
+        dto.setThumbnailUrl(toHttps(rs.getString("thumbnail_url")));
         dto.setOverview(rs.getString("overview"));
         dto.setEventStartDate(rs.getObject("event_start_date", java.time.LocalDate.class));
         dto.setEventEndDate(rs.getObject("event_end_date", java.time.LocalDate.class));
-        dto.setDistanceM(rs.getInt("distance_m"));
+        // getInt는 NULL을 0으로 바꿔 놓는다. 단건 조회(findById)에는 기준점이 없어 거리가
+        // NULL인데, 0으로 들어가면 화면이 "0m"로 읽는다. getObject라야 null이 그대로 온다
+        dto.setDistanceM(rs.getObject("distance_m", Integer.class));
         return dto;
+    }
+
+    /**
+     * 이미지 주소의 스킴을 https로 맞춘다.
+     *
+     * TourAPI가 내려주는 값이 {@code http://tong.visitkorea.or.kr/...}이다. 앱은 https에서 뜨므로(Cordova는 https://localhost, 웹은 CloudFront) http 이미지는 혼합 콘텐츠로 막힌다. {@code usesCleartextTraffic}은 안드로이드 네트워크 계층 설정이라 이것과 무관하다.
+     *
+     * 브라우저가 이미지에 한해 https로 올려 주기도 하지만 버전에 따라 다르고 실패하면 조용히 차단된다. 그 동작에 기대지 않는다. 같은 호스트가 https를 받는 것은 확인했다(2026-09-18).
+     *
+     * 적재 시점이 아니라 조회 시점에 바꾸는 이유는 이미 들어간 행을 건드리지 않기 위해서다. 원본 값은 그대로 두고 내보낼 때만 맞춘다.
+     */
+    private static String toHttps(String url) {
+        return url != null && url.startsWith("http://") ? "https://" + url.substring(7) : url;
     }
 }
