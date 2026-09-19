@@ -8,15 +8,19 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import kr.ridely.common.ApiResponse;
+import kr.ridely.dto.poi.PoiAllResponseDTO;
 import kr.ridely.dto.poi.PoiNearbyResponseDTO;
 import kr.ridely.service.PoiService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 
@@ -78,6 +82,36 @@ public class PoiController {
             String types) {
 
         return ApiResponse.ok(poiService.findNearby(lat, lng, radiusM, parseTypes(types)));
+    }
+
+    /**
+     * 캐시 수명. 적재 데이터는 배치로 가끔만 바뀌고, 앱은 이 응답을 폰에 저장해 쓰므로 자주 다시
+     * 받을 이유가 없다. 적재 직후 최대 이 시간 동안 옛 목록이 보일 수 있다는 뜻이기도 하다.
+     */
+    private static final Duration ALL_CACHE_MAX_AGE = Duration.ofHours(1);
+
+    @Operation(summary = "서비스 지역 인프라 POI 전체 조회",
+            description = """
+                    적재된 인프라 POI를 **전부** 한 번에 돌려준다. 앱이 이걸 폰에 저장해 두고
+                    GPS로 「내 주변」을 직접 거른다 — 서버에 내 위치를 묻지 않으려는 구조다.
+
+                    - **파라미터가 없다.** 좌표·반경·격자·「내 근처」 같은 값을 받지 않고, 모든 사용자가 같은 응답을 받는다.
+                      위치 단서가 요청에 들어가면 위치정보를 서버로 보내지 않는다는 원칙이 깨지므로 추가하지 말 것
+                    - 종류: `WATER` 급수대 · `TOILET` 화장실 · `CERT_CENTER` 인증센터 · `AIR_PUMP` 공기주입기 ·
+                      `REPAIR_SHOP` 수리센터 · `BIKE_STATION` 따릉이 대여소 · `ACCIDENT_ZONE` 사고다발지역
+                      (시설 4종은 `type`이 `ROUTE_FACILITY`이고 세부 종류가 `facilityType`에 온다)
+                    - **응답을 슬림하게 유지한다.** `distanceM`은 없고 사고다발지 폴리곤은 담지 않는다.
+                      도형이 필요하면 반경 조회(`/pois/nearby`)나 코스 추천 응답을 쓴다
+                    - **캐시**: `Cache-Control: max-age=3600`과 ETag를 준다. `If-None-Match`로 다시 물으면 바뀐 게 없을 때 304다
+                    - 결과가 없어도 200에 빈 배열이다(404 아님)
+
+                    ⚠️ 적재가 늘면 모든 사용자의 다운로드가 그만큼 커진다. 약 5,500건일 때 기준이며 커지면 서버 로그에 경고가 남는다.
+                    """)
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<PoiAllResponseDTO>> all() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(ALL_CACHE_MAX_AGE).cachePublic())
+                .body(ApiResponse.ok(poiService.findAll()));
     }
 
     /** "WATER,REPAIR_SHOP" → ["WATER", "REPAIR_SHOP"]. 빈 값이면 서비스의 기본값을 쓰도록 빈 목록을 넘긴다 */

@@ -5,9 +5,12 @@ import kr.ridely.common.ErrorCode;
 import kr.ridely.config.MvpAreaProperties;
 import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.PoiSpatialDao;
+import kr.ridely.dto.poi.PoiAllResponseDTO;
 import kr.ridely.dto.poi.PoiItemDTO;
 import kr.ridely.dto.poi.PoiNearbyResponseDTO;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -63,6 +66,18 @@ public class PoiServiceImpl implements PoiService {
      */
     private static final int MAX_PER_TYPE = 100;
 
+    private static final Logger log = LoggerFactory.getLogger(PoiServiceImpl.class);
+
+    /**
+     * 전체 조회 응답이 이 건수를 넘으면 경고를 남긴다.
+     *
+     * 전체 조회는 항상 전부를 내려주는 구조라 적재가 늘면 모든 사용자의 다운로드가 그만큼
+     * 커진다. 2026-09-19 기준 약 5,500건이다. 이 값은 실패시키는 한도가 아니라 「이제 구조를
+     * 다시 볼 때」를 알리는 신호다 - 넘으면 응답 슬림화·정적 파일 배포 등을 검토한다
+     * (docs/shared/0919/NEARBY_INFRA_LOCAL_PLAN.md).
+     */
+    static final int ALL_ITEMS_WARN_THRESHOLD = 10_000;
+
     private final PoiSpatialDao poiSpatialDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
     private final MvpAreaProperties mvpArea;
@@ -99,5 +114,22 @@ public class PoiServiceImpl implements PoiService {
                 radiusM,
                 items,
                 items.size());
+    }
+
+    @Override
+    public PoiAllResponseDTO findAll() {
+        // 종류 순서를 고정한다. 응답 본문이 실행마다 같아야 ETag가 의미가 있다.
+        List<PoiItemDTO> items = new ArrayList<>();
+        items.addAll(poiSpatialDao.findAllRouteFacilities());
+        items.addAll(poiSpatialDao.findAllRepairShops());
+        items.addAll(poiSpatialDao.findAllBikeStations());
+        items.addAll(accidentZoneSpatialDao.findAll());
+
+        if (items.size() > ALL_ITEMS_WARN_THRESHOLD) {
+            log.warn("POI 전체 조회가 {}건이다(경고 기준 {}건). 모든 사용자의 다운로드가 이만큼 커졌다 - "
+                            + "응답 슬림화나 정적 파일 배포를 검토할 때다",
+                    items.size(), ALL_ITEMS_WARN_THRESHOLD);
+        }
+        return new PoiAllResponseDTO(items, items.size());
     }
 }
