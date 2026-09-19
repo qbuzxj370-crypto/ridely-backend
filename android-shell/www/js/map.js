@@ -68,6 +68,12 @@ export function drawDangerZonePolygon(map, coordinates) {
   return polygon;
 }
 
+// 목록에서 항목을 눌렀을 때 지도를 그 지점으로 부드럽게 옮긴다. setCenter는 순간이동이라
+// 어디로 갔는지 놓치기 쉽다. 마커를 줌 변경 없이 화면 중앙으로 가져오는 용도다.
+export function panTo(map, lat, lng) {
+  map.panTo(new kakao.maps.LatLng(lat, lng));
+}
+
 export function fitBounds(map, latLngList) {
   const bounds = new kakao.maps.LatLngBounds();
   latLngList.forEach(([lat, lng]) => bounds.extend(new kakao.maps.LatLng(lat, lng)));

@@ -55,7 +55,7 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 
 ## 작업 단위 (단위별 add & commit, push는 마지막에)
 
-- [ ] 1. **기반** — `index.html` CSP `img-src`에 `https://tong.visitkorea.or.kr` 추가, `map.js`에 `panTo` 추가, `components.css`에 `.info-banner`·경유지 목록용 스타일
+- [x] 1. **기반** — `index.html` CSP `img-src`에 `https://tong.visitkorea.or.kr` 추가, `map.js`에 `panTo` 추가, `components.css`에 `.info-banner`·경유지 목록용 스타일
 - [ ] 2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
 - [ ] 3. **관광지 상세 카드** — 렌더링을 재사용 모듈 `js/tour-card.js`로 만든다. `TOUR_ATTRACTION` 항목 클릭 시 `GET /tours/{id}` → 카드 펼침 (썸네일·제목·주소·전화·개요, 없는 필드는 필드 유무로 판단, `COMMON-004`/네트워크 오류 처리, 같은 항목 재클릭 시 접기, 응답 캐시)
 - [ ] 4. **홈 주변 검색에 관광지 추가** — `home.html`에 「관광지」 체크박스와 `#home-tour-detail` 카드 자리, `home.js`에 `/tours/nearby` 병렬 호출·`POI-001` 0건 처리·마커·클릭 시 `tour-card.js`로 카드 표시, `map.js`에 `addTourMarker`
