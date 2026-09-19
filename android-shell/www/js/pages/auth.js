@@ -1,4 +1,5 @@
 import { login, signup } from '../auth.js';
+import { escapeHtml } from '../dom.js';
 import { navigate } from '../router.js';
 
 export function render(container, params) {
@@ -55,7 +56,7 @@ export function render(container, params) {
       }
       navigate(returnRoute);
     } catch (e) {
-      errorBox.innerHTML = `<div class="error-banner">${e.message || '처리 중 오류가 발생했어요'}</div>`;
+      errorBox.innerHTML = `<div class="error-banner">${escapeHtml(e.message || '처리 중 오류가 발생했어요')}</div>`;
       submitBtn.disabled = false;
     }
   });

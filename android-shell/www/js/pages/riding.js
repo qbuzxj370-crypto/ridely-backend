@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { escapeHtml } from '../dom.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import { navigate } from '../router.js';
 import state from '../state.js';
@@ -106,12 +107,12 @@ export function render(container) {
         const row = document.createElement('div');
         row.className = 'list-item';
         row.style.cursor = 'pointer';
-        row.innerHTML = `<span>${r.customName || r.aiTitle}</span><span class="badge">${r.totalDistanceKm}km</span>`;
+        row.innerHTML = `<span>${escapeHtml(r.customName || r.aiTitle)}</span><span class="badge">${r.totalDistanceKm}km</span>`;
         row.addEventListener('click', () => selectSavedRoute(r.recommendedRouteId));
         savedListEl.appendChild(row);
       });
     } catch (e) {
-      savedListEl.innerHTML = `<div class="error-banner">${e.message}</div>`;
+      savedListEl.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -122,7 +123,7 @@ export function render(container) {
       dangerZones = route.passingDangerZones || [];
       updateSelectedSummary();
     } catch (e) {
-      alertEl.innerHTML = `<div class="error-banner">코스를 불러오지 못했어요: ${e.message}</div>`;
+      alertEl.innerHTML = `<div class="error-banner">코스를 불러오지 못했어요: ${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -367,7 +368,7 @@ export function render(container) {
       const d = haversineM(lat, lng, zone.lat, zone.lng);
       if (d <= DANGER_ALERT_DISTANCE_M) {
         alertedZones.add(idx);
-        dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${zone.name || ''}</div>`;
+        dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${escapeHtml(zone.name || '')}</div>`;
       }
     });
   }
@@ -412,7 +413,7 @@ export function render(container) {
   }
 
   function onPositionError(err) {
-    alertEl.innerHTML = `<div class="error-banner">위치 추적 오류: ${err.message}</div>`;
+    alertEl.innerHTML = `<div class="error-banner">위치 추적 오류: ${escapeHtml(err.message)}</div>`;
   }
 
   function updateElapsed() {
