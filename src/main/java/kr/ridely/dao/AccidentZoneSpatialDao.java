@@ -77,6 +77,43 @@ public class AccidentZoneSpatialDao {
     }
 
     /**
+     * 사고다발지역 전부(최신 연도). 앱이 통째로 받아 폰에서 GPS로 거르는 전체 조회용이다
+     * ({@code GET /pois/all}).
+     *
+     * <b>폴리곤은 담지 않는다.</b> 마커와 이름·등급·건수만 있으면 주변 표시가 되고, 폴리곤은
+     * 구역 하나가 수십 개 좌표라 전체를 담으면 응답이 이 종류 하나로 커진다. 도형이 필요한 화면은
+     * 코스 추천 응답의 통과 구역(passingDangerZones)이나 반경 조회를 쓴다.
+     *
+     * 기준점이 없으므로 좌표·반경 인자를 두지 않는다 — 인자가 생기면 위치정보를 서버로 받지
+     * 않는다는 「전부 준다」 계약이 깨진다. 최신 연도만 보는 이유는 {@link #findPassing} 참조.
+     * ORDER BY id는 응답 본문(ETag)을 실행마다 같게 하려는 것이다.
+     */
+    public List<PoiItemDTO> findAll() {
+        return jdbcClient.sql("""
+                        SELECT
+                            a.accident_zone_id AS id,
+                            a.spot_name        AS name,
+                            a.danger_level,
+                            a.occurrence_count,
+                            a.death_count,
+                            ST_Y(a.center_geom) AS lat,
+                            ST_X(a.center_geom) AS lng
+                        FROM accident_zone a
+                        WHERE a.data_year = (SELECT MAX(data_year) FROM accident_zone)
+                        ORDER BY a.accident_zone_id
+                        """)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = new PoiItemDTO(TYPE_ACCIDENT_ZONE, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"), null);
+                    dto.setDangerLevel(rs.getString("danger_level"));
+                    dto.setOccurrenceCount(rs.getInt("occurrence_count"));
+                    dto.setDeathCount(rs.getInt("death_count"));
+                    return dto;
+                })
+                .list();
+    }
+
+    /**
      * 회피 대상 구역을 하나의 도형으로 합쳐 GeoJSON으로 돌려준다. 라우팅 엔진의 avoid_polygons에 그대로 넣는 값이다.
      *
      * 등급으로 거른다. 전 등급을 피하면 우회가 거리를 크게 늘리는데(실측 12km 목표에 15.5km, +29%) 그 우회의 대부분이 주의 등급 구역 때문이다. 무엇을 피할지가 곧 거리를 조절하는 손잡이라, 제약을 이진으로 켜고 끄는 대신 강도로 다룬다. 기본값은 application.yml의 ridely.route.avoid-danger-levels에 있다.

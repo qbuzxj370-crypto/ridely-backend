@@ -210,6 +210,93 @@ public class PoiSpatialDao {
                 .list();
     }
 
+    /*
+     * [지도 전체 조회용 — 기준점 없이 적재된 것 전부]
+     *
+     * 위 「한 점 반경」 조회들과 목적이 다르다. 이쪽은 앱이 한 번 통째로 받아 폰에서 GPS로
+     * 거르는 용도라(GET /pois/all) 중심 좌표도 반경도 거리 계산도 LIMIT도 없다.
+     *
+     * ⚠️ 이 메서드들에 좌표·반경 같은 인자를 넣지 않는다. 사용자 위치를 서버로 보내지 않기
+     * 위해 「전부 준다」는 계약으로 만든 것이라, 인자가 생기면 그 계약(위치정보 서버 무전송,
+     * LOCATION_PRIVACY_ARCHITECTURE.md)이 깨진다.
+     *
+     * ORDER BY id는 필수다. 순서가 실행마다 달라지면 응답 본문이 바뀌어 ETag가 매번 달라지고
+     * 캐시(304)가 무의미해진다.
+     *
+     * 응답이 커지는 것을 막으려고 지도에 찍고 이름을 보여줄 필드만 채운다. 시설은 세부 종류
+     * (facilityType)까지, 따릉이는 이름·좌표만이다. 수리소는 24건뿐이라 주소·전화·운영시간까지
+     * 담는다.
+     */
+
+    /** 자전거길 주변시설 전부(급수대·화장실·인증센터·공기주입기) */
+    public List<PoiItemDTO> findAllRouteFacilities() {
+        return jdbcClient.sql("""
+                        SELECT
+                            f.route_facility_id AS id,
+                            f.facility_name     AS name,
+                            f.facility_type,
+                            ST_Y(f.geom) AS lat,
+                            ST_X(f.geom) AS lng
+                        FROM route_facility f
+                        ORDER BY f.route_facility_id
+                        """)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = base(TYPE_ROUTE_FACILITY, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"), null);
+                    dto.setFacilityType(rs.getString("facility_type"));
+                    return dto;
+                })
+                .list();
+    }
+
+    /** 수리센터 전부 */
+    public List<PoiItemDTO> findAllRepairShops() {
+        return jdbcClient.sql("""
+                        SELECT
+                            s.repair_shop_id AS id,
+                            s.shop_name      AS name,
+                            s.addr,
+                            s.tel,
+                            s.is_free,
+                            s.operating_hours,
+                            ST_Y(s.geom) AS lat,
+                            ST_X(s.geom) AS lng
+                        FROM repair_shop s
+                        ORDER BY s.repair_shop_id
+                        """)
+                .query((rs, rowNum) -> {
+                    PoiItemDTO dto = base(TYPE_REPAIR_SHOP, rs.getLong("id"),
+                            rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"), null);
+                    dto.setAddr(rs.getString("addr"));
+                    dto.setTel(rs.getString("tel"));
+                    dto.setIsFree(rs.getBoolean("is_free"));
+                    dto.setOperatingHours(rs.getString("operating_hours"));
+                    return dto;
+                })
+                .list();
+    }
+
+    /**
+     * 운영 중인 따릉이 대여소 전부. 폐쇄된 곳을 뺀다({@link #findBikeStations}와 같은 이유).
+     *
+     * 가장 건수가 많은 종류(3,239건)라 필드를 이름·좌표로 제한한다. 거치대 수는 뺀다.
+     */
+    public List<PoiItemDTO> findAllBikeStations() {
+        return jdbcClient.sql("""
+                        SELECT
+                            b.bike_station_id AS id,
+                            b.station_name    AS name,
+                            ST_Y(b.geom) AS lat,
+                            ST_X(b.geom) AS lng
+                        FROM bike_station b
+                        WHERE b.is_active
+                        ORDER BY b.bike_station_id
+                        """)
+                .query((rs, rowNum) -> base(TYPE_BIKE_STATION, rs.getLong("id"),
+                        rs.getString("name"), rs.getDouble("lat"), rs.getDouble("lng"), null))
+                .list();
+    }
+
     private JdbcClient.StatementSpec radiusQuery(String sql, double lng, double lat,
                                                  int radiusM, int limit) {
         return jdbcClient.sql(sql)
@@ -352,7 +439,7 @@ public class PoiSpatialDao {
                 .param("limit", limit);
     }
 
-    private PoiItemDTO base(String type, long id, String name, double lat, double lng, int distanceM) {
+    private PoiItemDTO base(String type, long id, String name, double lat, double lng, Integer distanceM) {
         return new PoiItemDTO(type, id, name, lat, lng, distanceM);
     }
 }
