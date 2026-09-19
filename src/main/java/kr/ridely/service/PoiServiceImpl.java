@@ -11,6 +11,7 @@ import kr.ridely.dto.poi.PoiNearbyResponseDTO;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -78,6 +79,23 @@ public class PoiServiceImpl implements PoiService {
      */
     static final int ALL_ITEMS_WARN_THRESHOLD = 10_000;
 
+    /**
+     * 전체 조회 결과를 서버 메모리에 두는 시간(초). 0이면 캐시하지 않는다.
+     *
+     * 이 API는 인증 없이 열려 있고(PUBLIC_PATHS), 백엔드에는 요청 제한이 따로 없다. 요청마다 네 테이블을
+     * 전부 읽고 약 525KB를 직렬화하는 구조라, 캐시가 없으면 반복 요청이 그대로 DB 부담이 된다.
+     * 적재 데이터는 배치로 가끔만 바뀌고 응답 헤더(Cache-Control 1시간)도 이미 그만큼의 낡음을
+     * 허용하므로, 서버에서 몇 분 들고 있는 것은 새로 생기는 손해가 없다.
+     *
+     * 단, 적재 직후에도 이 시간까지는 옛 목록이 나간다. 테스트는 이 값을 0으로 둔다
+     * (AbstractIntegrationTest) — 데이터를 바꾸고 바로 응답을 확인하기 때문이다.
+     */
+    @Value("${ridely.poi.all-cache-seconds:300}")
+    private long allCacheSeconds;
+
+    private volatile PoiAllResponseDTO allCache;
+    private volatile long allCacheLoadedNanos;
+
     private final PoiSpatialDao poiSpatialDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
     private final MvpAreaProperties mvpArea;
@@ -118,6 +136,28 @@ public class PoiServiceImpl implements PoiService {
 
     @Override
     public PoiAllResponseDTO findAll() {
+        if (allCacheSeconds <= 0) {
+            return loadAll();
+        }
+        PoiAllResponseDTO cached = allCache;
+        if (cached != null && isFresh()) {
+            return cached;
+        }
+        // 캐시가 만료된 순간 요청이 몰려도 DB 조회는 한 번만 나가게 한다(뒤늦게 들어온 쪽은 갱신된 것을 쓴다)
+        synchronized (this) {
+            if (allCache == null || !isFresh()) {
+                allCache = loadAll();
+                allCacheLoadedNanos = System.nanoTime();
+            }
+            return allCache;
+        }
+    }
+
+    private boolean isFresh() {
+        return System.nanoTime() - allCacheLoadedNanos < allCacheSeconds * 1_000_000_000L;
+    }
+
+    private PoiAllResponseDTO loadAll() {
         // 종류 순서를 고정한다. 응답 본문이 실행마다 같아야 ETag가 의미가 있다.
         List<PoiItemDTO> items = new ArrayList<>();
         items.addAll(poiSpatialDao.findAllRouteFacilities());
