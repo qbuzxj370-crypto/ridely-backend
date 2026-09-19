@@ -55,14 +55,26 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 
 ## 작업 단위 (단위별 add & commit, push는 마지막에)
 
-1. **기반** — `index.html` CSP `img-src`에 `https://tong.visitkorea.or.kr` 추가, `map.js`에 `panTo` 추가, `components.css`에 `.info-banner`·경유지 목록용 스타일
-2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
-3. **관광지 상세 카드** — 렌더링을 재사용 모듈 `js/tour-card.js`로 만든다. `TOUR_ATTRACTION` 항목 클릭 시 `GET /tours/{id}` → 카드 펼침 (썸네일·제목·주소·전화·개요, 없는 필드는 필드 유무로 판단, `COMMON-004`/네트워크 오류 처리, 같은 항목 재클릭 시 접기, 응답 캐시)
-4. **홈 주변 검색에 관광지 추가** — `home.html`에 「관광지」 체크박스와 `#home-tour-detail` 카드 자리, `home.js`에 `/tours/nearby` 병렬 호출·`POI-001` 0건 처리·마커·클릭 시 `tour-card.js`로 카드 표시, `map.js`에 `addTourMarker`
-5. **라이딩 근접 안내** — `riding.html`에 슬롯 추가, `riding.js`에 `alertedTours`·`checkTourProximity()`, `saveProgress`/`resumeInterruptedSession`에 저장·복구, 라이딩 시작 시 초기화
-6. **문서** — `FRONTEND_ISSUES.md`에 항목 추가, 이 문서 체크리스트·테스트 결과 갱신
+- [ ] 1. **기반** — `index.html` CSP `img-src`에 `https://tong.visitkorea.or.kr` 추가, `map.js`에 `panTo` 추가, `components.css`에 `.info-banner`·경유지 목록용 스타일
+- [ ] 2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
+- [ ] 3. **관광지 상세 카드** — 렌더링을 재사용 모듈 `js/tour-card.js`로 만든다. `TOUR_ATTRACTION` 항목 클릭 시 `GET /tours/{id}` → 카드 펼침 (썸네일·제목·주소·전화·개요, 없는 필드는 필드 유무로 판단, `COMMON-004`/네트워크 오류 처리, 같은 항목 재클릭 시 접기, 응답 캐시)
+- [ ] 4. **홈 주변 검색에 관광지 추가** — `home.html`에 「관광지」 체크박스와 `#home-tour-detail` 카드 자리, `home.js`에 `/tours/nearby` 병렬 호출·`POI-001` 0건 처리·마커·클릭 시 `tour-card.js`로 카드 표시, `map.js`에 `addTourMarker`
+- [ ] 5. **라이딩 근접 안내** — `riding.html`에 슬롯 추가, `riding.js`에 `alertedTours`·`checkTourProximity()`, `saveProgress`/`resumeInterruptedSession`에 저장·복구, 라이딩 시작 시 초기화
+- [ ] 6. **문서** — `FRONTEND_ISSUES.md`에 항목 추가, 이 문서 체크리스트·테스트 결과 갱신
 
 작업 순서는 요청하신 대로 **수정 → 테스트 → 버그수정 → 로직검토 → 최종수정**, 문서는 단위마다 갱신한다.
+
+## 이번 범위에서 제외 — 나중에 (2026-09-19 결정)
+
+지금 작업(위 1~6번)과 별개로 미뤄둔 것들. 착수하려면 각자 선행 조건이 있다.
+
+| 항목 | 상태 / 선행 조건 |
+|---|---|
+| **현위치 주변 시설 표시**(홈·라이딩 화면) | 시설 데이터를 **통째로 받아 폰에서 GPS로 거르는** 방식으로 진행하기로 정리됨(요청에 위치 없음 → 위치정보 서버 무전송 원칙 충족, 「프론트에서만 위치정보가 돌면 문제없다」는 자문 확인). 선행: **백엔드 「서비스 지역 시설 전체 조회 API」**(`GET /api/v1/pois/all` 가칭)를 담당자가 직접 만들 예정. 종류별 적재 약 5,500건, 데이터 크기 실측·캐시 정책·관광지 개요 제외 여부는 그때 결정. 이 API에 좌표·격자·「내 근처」 파라미터를 넣으면 안 됨 |
+| 자유 주행 중 사고다발지 경고 | 지금은 추천 코스가 지나는 사고다발지만 경고하고, 자유 주행은 데이터가 없어 경고가 안 뜸. 위 「전체 조회」 데이터가 생기면 함께 해결 가능 |
+| 경고 소리·진동 | 지금은 화면 배너뿐 |
+| 사용자가 고른 편의시설을 경유하는 코스 | 요청 DTO에 시설 지정 입력이 없어 **백엔드 변경 필요** |
+| 경유지 배지에서 급수대·화장실·인증센터 구분 | `WaypointDTO`에 `facilityType`이 없어 **백엔드 변경 필요**. 지금은 「편의시설」로 통칭 |
 
 ## 테스트 계획
 
