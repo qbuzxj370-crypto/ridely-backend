@@ -58,6 +58,23 @@ export function addTourMarker(map, lat, lng, title, onClick) {
   return overlay;
 }
 
+// 내 현재 위치 표시. 인프라 마커(파란 핀)·관광지 마커(주황 원)와 겹쳐 헷갈리지 않게 지도 앱
+// 관례대로 파란 점으로 그린다. 반환값은 setMap(null)로 지울 수 있다.
+export function addMeMarker(map, lat, lng) {
+  const dot = document.createElement('div');
+  dot.className = 'me-dot';
+  dot.title = '내 위치';
+  const overlay = new kakao.maps.CustomOverlay({
+    position: new kakao.maps.LatLng(lat, lng),
+    content: dot,
+    xAnchor: 0.5,
+    yAnchor: 0.5,
+    zIndex: 10, // 주변 마커 위에 보이게
+  });
+  overlay.setMap(map);
+  return overlay;
+}
+
 export function drawPolyline(map, coordinates) {
   // coordinates: [[lng, lat], ...] (GeoJSON 순서)
   const path = coordinates.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));

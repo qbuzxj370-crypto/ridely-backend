@@ -171,6 +171,16 @@
   color: var(--color-text-secondary);
 }
 
+/* 홈 지도의 내 위치 표시(map.js addMeMarker) */
+.me-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2f80ed;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(47, 128, 237, 0.25), 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
 /* 홈 지도의 관광지 마커(map.js addTourMarker) */
 .tour-pin {
   width: 30px;

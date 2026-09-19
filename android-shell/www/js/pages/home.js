@@ -1,6 +1,8 @@
-import { createMap, addMarker, addTourMarker } from '../map.js';
+import { createMap, addMarker, addTourMarker, addMeMarker } from '../map.js';
 import { apiFetch } from '../api.js';
 import { buildTourCard } from '../tour-card.js';
+import { loadAllInfra, filterNearby } from '../infra-store.js';
+import { getCurrentPosition, describeGeoError } from '../geo.js';
 
 // 여의도한강공원 — 서비스 지역 안이라 확인하기 좋다 (FRONTEND_GUIDE.md 5장).
 const DEFAULT_CENTER = { lat: 37.5265, lng: 126.9339 };
@@ -34,10 +36,18 @@ async function fetchNearbyTours(center, radiusM) {
   }
 }
 
+/** { WATER: 2, TOUR: 1 } → "급수대 2 · 관광지 1" */
+function formatCounts(counts) {
+  return Object.entries(counts)
+    .map(([k, v]) => `${TYPE_LABELS[k] || k} ${v}`)
+    .join(' · ');
+}
+
 export function render(container) {
   let map = null;
   let infraMarkers = [];
   let searchCenterMarker = null;
+  let meMarker = null; // 「내 주변 인프라 보기」로 찍은 내 위치. 다음 「내 주변」 조회 때 지운다
   // 인프라·관광지 두 요청이 나가므로 검색을 연달아 누르면 늦게 온 옛 응답이 새 결과를 덮을
   // 수 있다. 가장 최근 검색의 응답만 화면에 반영한다.
   let searchSeq = 0;
@@ -53,6 +63,8 @@ export function render(container) {
     if (searchCenterMarker) searchCenterMarker.setMap(null);
     searchCenterMarker = marker;
   });
+
+  container.querySelector('#home-near-me').addEventListener('click', () => showNearMe(container));
 
   container.querySelector('#home-infra-search').addEventListener('click', () => {
     if (!map) return;
@@ -78,6 +90,82 @@ export function render(container) {
   function hideTourDetail() {
     const box = container.querySelector('#home-tour-detail');
     if (box) box.style.display = 'none';
+  }
+
+  /**
+   * 「내 주변 인프라 보기」 — 기기 GPS 주변의 시설을 보여준다.
+   *
+   * <b>내 위치는 서버로 나가지 않는다.</b> 서버에는 「전부 주세요」(GET /pois/all, 파라미터
+   * 없음)만 묻고, 받은 목록을 폰에 저장한 뒤 GPS와의 거리를 이 안에서 계산해 반경으로 거른다
+   * (js/infra-store.js, docs/shared/0919/NEARBY_INFRA_LOCAL_PLAN.md). 기존 「이 위치 주변
+   * 검색」은 지도 중심을 서버에 보내는 다른 기능이라 그대로 둔다.
+   *
+   * 관광지는 여기 포함하지 않는다 — 관광지 목록은 서버 반경 조회로만 받을 수 있어서(개요가 길어
+   * 전체 조회가 없다) 지도 중심 검색 쪽에서 본다.
+   */
+  async function showNearMe(cont) {
+    const summaryEl = cont.querySelector('#infra-summary-body');
+    if (!summaryEl) return;
+    const say = (text) => {
+      summaryEl.textContent = text;
+      summaryEl.classList.add('empty-state');
+    };
+
+    if (!map) {
+      say('지도를 불러오지 못해 표시할 수 없어요');
+      return;
+    }
+    const radiusM = Math.min(parseInt(cont.querySelector('#home-radius').value, 10) || 1000, 5000);
+    const types = Array.from(cont.querySelectorAll('.home-type:checked')).map((el) => el.value);
+    if (!types.length) {
+      say('표시할 인프라 종류를 하나 이상 선택해주세요');
+      return;
+    }
+
+    // 지도 중심 검색과 결과가 섞이지 않게 진행 중인 검색을 무효로 만든다
+    const seq = ++searchSeq;
+    say('내 위치를 확인하는 중...');
+    let position;
+    try {
+      position = await getCurrentPosition();
+    } catch (e) {
+      if (seq === searchSeq) say(describeGeoError(e));
+      return;
+    }
+    if (seq !== searchSeq) return;
+
+    say('주변 인프라를 불러오는 중...');
+    let all;
+    try {
+      all = await loadAllInfra();
+    } catch (e) {
+      if (seq === searchSeq) say('인프라 정보를 불러오지 못했어요 (' + ((e && e.message) || '오류') + ')');
+      return;
+    }
+    if (seq !== searchSeq) return;
+
+    const { latitude: lat, longitude: lng } = position.coords;
+    const nearby = filterNearby(all.items, lat, lng, radiusM, types);
+
+    clearInfraMarkers();
+    hideTourDetail();
+    if (meMarker) meMarker.setMap(null);
+    meMarker = addMeMarker(map, lat, lng);
+
+    const counts = {};
+    nearby.forEach((item) => {
+      counts[item.typeKey] = (counts[item.typeKey] || 0) + 1;
+      infraMarkers.push(addMarker(map, item.lat, item.lng,
+        `${TYPE_LABELS[item.typeKey] || item.typeKey} · ${item.name || ''} (${item.distanceM}m)`));
+    });
+    map.setCenter(new kakao.maps.LatLng(lat, lng));
+
+    const label = formatCounts(counts);
+    const staleNote = all.stale ? ' (서버에 연결하지 못해 저장해둔 목록을 썼어요)' : '';
+    summaryEl.textContent = label
+      ? `내 위치 반경 ${radiusM}m — ${label}${staleNote}`
+      : `내 위치 반경 ${radiusM}m 안에 표시할 인프라가 없어요 (서비스 지역은 한강 서울 구간이에요)${staleNote}`;
+    summaryEl.classList.remove('empty-state');
   }
 
   async function searchInfra(cont, mapInstance, center) {
@@ -135,9 +223,7 @@ export function render(container) {
       infraMarkers.push(addTourMarker(mapInstance, tour.lat, tour.lng, tour.title, () => showTourDetail(tour)));
     });
 
-    const label = Object.entries(counts)
-      .map(([k, v]) => `${TYPE_LABELS[k] || k} ${v}`)
-      .join(' · ');
+    const label = formatCounts(counts);
     const notes = [];
     if (infraFailed) notes.push('인프라는 불러오지 못했어요');
     if (toursFailed) notes.push('관광지는 불러오지 못했어요');
