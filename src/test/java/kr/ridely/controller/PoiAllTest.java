@@ -167,7 +167,12 @@ class PoiAllTest extends AbstractIntegrationTest {
         assertThat(cacheControl).contains("max-age=3600").contains("public");
         // 스프링 시큐리티의 기본 「no-store」가 덮어쓰면 캐시가 통째로 무의미해진다
         assertThat(cacheControl).doesNotContain("no-store");
-        assertThat(result.getResponse().getHeader("ETag")).isNotBlank();
+        String etag = result.getResponse().getHeader("ETag");
+        assertThat(etag).isNotBlank();
+        // ★ 반드시 약한 ETag(W/"...")여야 한다. 강한 ETag가 붙으면 Tomcat이 이 응답을 gzip으로
+        //   압축하지 않아 약 525KB가 그대로 나간다(실데이터로 확인). MockMvc엔 압축이 없어
+        //   결과로는 못 잡으므로 ETag 형태 자체를 고정한다
+        assertThat(etag).startsWith("W/");
     }
 
     @Test
