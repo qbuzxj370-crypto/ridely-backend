@@ -58,6 +58,10 @@
 
 조치: `ShallowEtagHeaderFilter`를 약한 ETag(`W/"..."`)로 설정(`HttpCacheConfig`). 조건부 요청(304)은 약한 ETag로도 동일하게 동작한다. 재발 방지로 `PoiAllTest`가 ETag가 `W/`로 시작하는지 고정한다.
 
+### 배포 후 확인할 것 (로컬로는 못 보는 것)
+
+- 실서버는 CloudFront를 거친다. 배포 뒤 `https://<CloudFront>/api/v1/pois/all`에서 **`Content-Encoding: gzip`이 유지되는지**, **`ETag`·`Cache-Control`이 살아 있는지**, 같은 ETag로 재요청 시 **304**가 오는지 확인한다(CloudFront 캐시 정책이 `Accept-Encoding`/`If-None-Match`를 어떻게 다루는지에 달려 있다)
+
 ## 막힌 것 (2026-09-19 현재)
 
 - ~~Docker가 안 떠 있다~~ → 사용자가 Docker Desktop을 켜서 해소. Testcontainers 통합 테스트와 로컬 DB 실행이 가능해졌다
