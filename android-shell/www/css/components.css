@@ -149,6 +149,61 @@
   color: var(--color-text-secondary);
 }
 
+/* 관광지 항목 안에서 펼쳐지는 상세 영역과 카드(js/tour-card.js) */
+.wp-more {
+  margin-left: auto;
+  font-size: 12px;
+  color: #b4471b;
+}
+
+/* 거리 표시가 있으면 그쪽이 auto 마진으로 오른쪽을 차지하므로 이건 그 바로 옆에 붙는다 */
+.wp-dist ~ .wp-more {
+  margin-left: 0;
+}
+
+.wp-detail {
+  margin-top: 10px;
+  cursor: default;
+}
+
+.wp-detail-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.tour-card {
+  background: #fff8f4;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.tour-card-thumb {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.tour-card-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tour-card-meta {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+
+.tour-card-overview {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
 .wp-reason {
   margin: 6px 0 0;
   font-size: 13px;

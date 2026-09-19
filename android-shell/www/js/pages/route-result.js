@@ -2,6 +2,7 @@ import { createMap, addMarker, drawPolyline, drawDangerZonePolygon, fitBounds, p
 import { apiFetch } from '../api.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import state from '../state.js';
+import { fetchTourDetail, buildTourCard } from '../tour-card.js';
 
 // 백엔드 WaypointDTO.type → 배지 라벨. ROUTE_FACILITY는 급수대·화장실·인증센터가 한 종류로
 // 묶여 내려오고 세부 종류 필드가 없어서 「편의시설」로 통칭할 수밖에 없다.
@@ -106,14 +107,80 @@ function renderWaypoints(container, waypoints, getMap) {
       item.appendChild(reason);
     }
 
-    item.addEventListener('click', () => {
+    const toggleDetail = wp.type === 'TOUR_ATTRACTION' ? attachTourDetail(item, head, wp) : null;
+
+    item.addEventListener('click', (e) => {
+      // 펼쳐진 상세 카드 안을 눌렀을 때(글 선택 등)는 항목 클릭으로 치지 않는다
+      if (e.target.closest('.wp-detail')) return;
       const map = getMap();
       if (map) panTo(map, wp.lat, wp.lng);
+      if (toggleDetail) toggleDetail();
     });
     listEl.appendChild(item);
   });
 
   container.querySelector('#rr-waypoints-card').style.display = 'block';
+}
+
+/**
+ * 관광지 항목을 누르면 그 아래에 상세 카드를 펼친다(모달이 아니라 인라인 — 이 앱엔 모달
+ * 컴포넌트가 없고, 목록 맥락을 잃지 않는다). GET /tours/{id}는 경유지의 id를 그대로 쓴다.
+ *
+ * 상태: idle(아직 안 열림) → loading → loaded(접기/펴기 토글) / error(다시 누르면 재시도).
+ * 로딩 중 연타는 무시한다. 성공한 응답은 tour-card.js가 캐시하므로 다시 펼칠 땐 즉시 나온다.
+ */
+function attachTourDetail(item, head, wp) {
+  const more = document.createElement('span');
+  more.className = 'wp-more';
+  more.textContent = '자세히 ▾';
+  head.appendChild(more);
+
+  const detail = document.createElement('div');
+  detail.className = 'wp-detail';
+  detail.style.display = 'none';
+  item.appendChild(detail);
+
+  let status = 'idle';
+
+  function setOpen(open) {
+    detail.style.display = open ? 'block' : 'none';
+    more.textContent = open ? '접기 ▴' : '자세히 ▾';
+  }
+
+  function showStatus(text) {
+    detail.replaceChildren();
+    const el = document.createElement('div');
+    el.className = 'wp-detail-status';
+    el.textContent = text;
+    detail.appendChild(el);
+  }
+
+  async function load() {
+    status = 'loading';
+    setOpen(true);
+    showStatus('불러오는 중...');
+    try {
+      const tour = await fetchTourDetail(wp.id);
+      detail.replaceChildren(buildTourCard(tour));
+      status = 'loaded';
+    } catch (e) {
+      // 없는 번호(COMMON-004)는 다시 눌러도 같은 결과지만, 네트워크 오류는 재시도가 통한다.
+      // 어느 쪽이든 재시도 자체는 막지 않는다.
+      showStatus(e.code === 'COMMON-004'
+        ? '관광지 정보를 찾을 수 없어요'
+        : `${e.message || '불러오지 못했어요'} — 다시 눌러 재시도해요`);
+      status = 'error';
+    }
+  }
+
+  return function toggle() {
+    if (status === 'loading') return;
+    if (status === 'idle' || status === 'error') {
+      load();
+      return;
+    }
+    setOpen(detail.style.display === 'none');
+  };
 }
 
 async function initMap(container, route, dangerZones) {
