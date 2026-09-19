@@ -294,6 +294,11 @@ ridely:
         # 1회 요청 상한. 초과하면 ERROR-336을 돌려준다
         max-rows-per-call: 1000
 
+  # 인프라 POI 전체 조회(GET /api/v1/pois/all)를 서버 메모리에 두는 시간(초). 0이면 끈다.
+  # 근거는 PoiServiceImpl.allCacheSeconds 주석. 적재 직후에도 이 시간까지는 옛 목록이 나간다.
+  poi:
+    all-cache-seconds: 300
+
   # MVP 서비스 범위: 한강 자전거길 서울 구간 (아라한강갑문~잠실, 약 40km)
   # TourAPI·POI 배치 적재와 코스 추천 서비스 영역 판정에 사용 (bounding box)
   mvp-area:

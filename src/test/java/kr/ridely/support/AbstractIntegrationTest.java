@@ -59,5 +59,7 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // 서버 메모리 캐시를 끈다: 테스트는 데이터를 바꾸고 바로 응답을 확인한다(PoiServiceImpl.allCacheSeconds)
+        registry.add("ridely.poi.all-cache-seconds", () -> "0");
     }
 }
