@@ -4,6 +4,7 @@ import { navigate } from '../router.js';
 import state from '../state.js';
 import { createMap, drawPolyline, drawDangerZonePolygon, fitBounds } from '../map.js';
 import { newSessionId, saveCompletedSession } from '../ride-storage.js';
+import { haversineM } from '../geo.js';
 
 // 여의도한강공원 — 추천 코스도 없고 GPS 첫 위치도 아직 없을 때 지도 초기 중심
 const FALLBACK_CENTER = { lat: 37.5265, lng: 126.9339 };
@@ -32,17 +33,6 @@ const MAX_PLAUSIBLE_KMH = 45;
 // (실측 2026-09-17: 지쿠터 테스트 중 실제로 겪었다). 이 키에 매 GPS 갱신마다 저장해두면
 // 앱이 다시 켜졌을 때 render()가 이어서 추적을 재개할 수 있다.
 const STORAGE_KEY = 'ridely.riding.active_session';
-
-function haversineM(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 export function render(container) {
   if (!requireLoginOrRedirect('riding')) return;
