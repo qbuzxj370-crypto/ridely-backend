@@ -39,7 +39,7 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 **B. 관광 안내 슬롯 — `#riding-tour-alert`를 새로 추가, 스타일은 경고와 구분**
 사고다발지 경고(`#riding-danger-alert`, 빨간 `error-banner`)와 **시각적으로 달라야** 한다. 같은 빨간색이면 관광 안내가 안전 경고처럼 보인다. `components.css`에 `.info-banner`(중립/브랜드색) 1개를 추가한다.
 
-**C. 안내 문구** — `📍 관광지 근처예요 (150m) — 선유도공원` 한 줄. `reason`은 붙이지 않는다(주행 중 긴 문장은 방해).
+**C. 안내 문구** — `📍 관광지 근처예요 (150m) — 선유도공원` 한 줄. `reason`은 붙이지 않는다(주행 중 긴 문장은 방해). **안내는 10초 뒤 저절로 사라진다**(구현하면서 추가) — 안전 경고와 달리 참고 정보라 지나친 뒤에도 남아 있으면 틀린 정보가 된다. 한 번에 둘 이상이 200m 안에 들면 모두 보여주고, 새 안내가 뜨면 타이머를 새로 건다.
 
 **D. 안전 원칙** — 근접 판정은 `haversineM`으로 단말에서만 한다. 서버로 나가는 건 `GET /tours/{관광지번호}`뿐이고 이는 위치정보가 아니다(`LOCATION_PRIVACY_ARCHITECTURE.md` 준수).
 
@@ -61,7 +61,7 @@ AI가 코스에 넣은 관광지와 「왜 골랐는지(`reason`)」가 앱 화�
 - [x] 2. **경유지 목록** — `route-result.html`/`route-result.js`: `initMap` 구조 변경(지도·마커 보관), 목록 렌더링(유형 배지, 이름, 출발점 기준 거리, `reason`), 클릭 시 `panTo`
 - [x] 3. **관광지 상세 카드** — 렌더링을 재사용 모듈 `js/tour-card.js`로 만든다. `TOUR_ATTRACTION` 항목 클릭 시 `GET /tours/{id}` → 카드 펼침 (썸네일·제목·주소·전화·개요, 없는 필드는 필드 유무로 판단, `COMMON-004`/네트워크 오류 처리, 같은 항목 재클릭 시 접기, 응답 캐시)
 - [x] 4. **홈 주변 검색에 관광지 추가** — `home.html`에 「관광지」 체크박스와 `#home-tour-detail` 카드 자리, `home.js`에 `/tours/nearby` 병렬 호출·`POI-001` 0건 처리·마커·클릭 시 `tour-card.js`로 카드 표시, `map.js`에 `addTourMarker`
-- [ ] 5. **라이딩 근접 안내** — `riding.html`에 슬롯 추가, `riding.js`에 `alertedTours`·`checkTourProximity()`, `saveProgress`/`resumeInterruptedSession`에 저장·복구, 라이딩 시작 시 초기화
+- [x] 5. **라이딩 근접 안내** — `riding.html`에 슬롯 추가, `riding.js`에 `alertedTours`·`checkTourProximity()`, `saveProgress`/`resumeInterruptedSession`에 저장·복구, 라이딩 시작 시 초기화
 - [ ] 6. **문서** — `FRONTEND_ISSUES.md`에 항목 추가, 이 문서 체크리스트·테스트 결과 갱신
 
 작업 순서는 요청하신 대로 **수정 → 테스트 → 버그수정 → 로직검토 → 최종수정**, 문서는 단위마다 갱신한다.
