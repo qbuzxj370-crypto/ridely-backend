@@ -62,6 +62,8 @@
 
 ### 배포 후 확인할 것 (로컬로는 못 보는 것)
 
+> 배포 순서·확인 명령·결정 대기 항목 전체는 `PROD_DEPLOY_CHECKLIST.md`에 모았다.
+
 - 실서버는 CloudFront를 거친다. 배포 뒤 `https://<CloudFront>/api/v1/pois/all`에서 **`Content-Encoding: gzip`이 유지되는지**, **`ETag`·`Cache-Control`이 살아 있는지**, 같은 ETag로 재요청 시 **304**가 오는지 확인한다(CloudFront 캐시 정책이 `Accept-Encoding`/`If-None-Match`를 어떻게 다루는지에 달려 있다)
 
 ## 로직 검토 결과 (2026-09-20)
