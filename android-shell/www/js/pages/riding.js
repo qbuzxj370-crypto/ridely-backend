@@ -12,6 +12,13 @@ const SAMPLE_INTERVAL_MS = 10000; // 10초 또는 50m 중 먼저 오는 것 — 
 const SAMPLE_MIN_DISTANCE_M = 50;
 const DANGER_ALERT_DISTANCE_M = 200; // ridely.route.danger-zone-alert-distance-m 기본값과 동일
 
+// 코스에 든 관광지에 이 거리 안으로 들어오면 한 번 알려준다. 사고다발지 경고와 값은 같지만
+// 안전 경고와 따로 조정할 수 있게 상수를 나눴다.
+const TOUR_ALERT_DISTANCE_M = 200;
+// 관광 안내는 안전과 무관한 참고 정보라, 지나친 뒤에도 화면에 남아 있으면 오히려 틀린 정보가
+// 된다. 잠깐 보여주고 스스로 치운다(사고다발지 경고는 다음 경고로 덮일 때까지 남는다).
+const TOUR_ALERT_VISIBLE_MS = 10000;
+
 // GPS 정확도가 이보다 나쁜(숫자가 큰) 갱신은 이동거리 계산에서 뺀다.
 // 실측(2026-09-17 지쿠터 테스트)에서 정확도 필터·중복 누적 버그 때문에 평균속도가 터무니없이 튀었다.
 const MAX_ACCEPTABLE_ACCURACY_M = 30;
@@ -50,6 +57,10 @@ export function render(container) {
   let instantSpeedKmh = 0;
   let sessionId = null;
   let alertedZones = new Set();
+  // 이미 안내한 관광지 번호(waypoint id). 사고다발지와 별도로 센다 — alertedZones.size가
+  // 라이딩 기록의 alertReceivedCount(안전 경고 횟수)로 저장되므로 섞으면 통계가 오염된다.
+  let alertedTours = new Set();
+  let tourAlertTimerId = null;
   let dangerZones = (state.lastRecommend && state.lastRecommend.passingDangerZones) || [];
 
   let map = null;
@@ -67,6 +78,9 @@ export function render(container) {
   // 사고다발지 근접 경고 전용 슬롯. alertEl과 같이 쓰면 이어서 추적 안내·GPS 에러·종료 실패
   // 같은 일반 메시지가 뒤이어 뜰 때 안전 경고가 그대로 덮여서 사라졌다 — 안전 관련이라 분리한다.
   const dangerAlertEl = container.querySelector('#riding-danger-alert');
+  // 관광지 근접 안내 전용 슬롯. dangerAlertEl과 같이 쓰면 뒤에 오는 메시지가 앞의 것을 덮는데,
+  // 관광 안내가 안전 경고를 지우는 순서가 나온다 — 슬롯을 나눈 이유가 그것이다.
+  const tourAlertEl = container.querySelector('#riding-tour-alert');
   const selectedCard = container.querySelector('#riding-selected-card');
   const selectedSummary = container.querySelector('#riding-selected-summary');
   const savedListEl = container.querySelector('#riding-saved-list');
@@ -145,12 +159,14 @@ export function render(container) {
     lastSample = null;
     lastFix = null;
     alertedZones = new Set();
+    alertedTours = new Set();
     traveledPath = [];
 
     idleBox.style.display = 'none';
     activeBox.style.display = 'block';
     alertEl.innerHTML = '';
     dangerAlertEl.innerHTML = '';
+    clearTourAlert();
 
     await initMap();
     beginTracking();
@@ -176,6 +192,8 @@ export function render(container) {
     distanceM = saved.distanceM || 0;
     track = saved.track || [];
     alertedZones = new Set(saved.alertedZones || []);
+    // 재개된 세션에서 이미 안내한 관광지를 또 알리지 않는다(예전에 저장된 진행 기록엔 이 필드가 없다)
+    alertedTours = new Set(saved.alertedTours || []);
     lastSample = track.length
       ? { lat: track[track.length - 1][1], lng: track[track.length - 1][0], time: Date.now() }
       : null;
@@ -217,6 +235,7 @@ export function render(container) {
         distanceM,
         track,
         alertedZones: Array.from(alertedZones),
+        alertedTours: Array.from(alertedTours),
         recommendedRouteId: state.lastRecommend ? state.lastRecommend.recommendedRouteId : null,
       }));
     } catch (e) { /* localStorage 꽉 찼거나 비활성화면 무시 — 추적 자체는 막지 않는다 */ }
@@ -323,6 +342,7 @@ export function render(container) {
     }
 
     checkDangerZones(latitude, longitude);
+    checkTourProximity(latitude, longitude);
     updateLivePosition(latitude, longitude);
     distanceEl.textContent = (distanceM / 1000).toFixed(2);
     instantSpeedEl.textContent = instantSpeedKmh.toFixed(1);
@@ -360,6 +380,45 @@ export function render(container) {
         dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${zone.name || ''}</div>`;
       }
     });
+  }
+
+  /**
+   * 코스에 든 관광지(waypoints 중 TOUR_ATTRACTION)에 가까워지면 한 번 알려준다. 사고다발지
+   * 경고와 같은 구조지만 슬롯·스타일·집계가 전부 따로다. 판정은 단말에서만 한다 — 서버는
+   * 부르지 않고, 위치는 어디로도 나가지 않는다.
+   *
+   * 자유 주행이면 state.lastRecommend가 없어 아무 일도 하지 않는다. 저장한 코스를 골랐을 때도
+   * GET /routes/{id}가 같은 waypoints를 돌려주므로 그대로 동작한다.
+   */
+  function checkTourProximity(lat, lng) {
+    const waypoints = (state.lastRecommend && state.lastRecommend.waypoints) || [];
+    const reached = [];
+    waypoints.forEach((wp) => {
+      if (wp.type !== 'TOUR_ATTRACTION' || alertedTours.has(wp.id)) return;
+      if (typeof wp.lat !== 'number' || typeof wp.lng !== 'number') return;
+      const d = haversineM(lat, lng, wp.lat, wp.lng);
+      if (d <= TOUR_ALERT_DISTANCE_M) {
+        alertedTours.add(wp.id);
+        reached.push({ name: wp.name || '', d });
+      }
+    });
+    if (!reached.length) return;
+
+    // 이름은 외부 데이터라 textContent로만 넣는다. 한 번에 둘 이상이 걸리면 모두 보여준다.
+    tourAlertEl.replaceChildren(...reached.map(({ name, d }) => {
+      const banner = document.createElement('div');
+      banner.className = 'info-banner';
+      banner.textContent = `📍 관광지 근처예요 (${Math.round(d)}m) — ${name}`;
+      return banner;
+    }));
+    if (tourAlertTimerId != null) clearTimeout(tourAlertTimerId);
+    tourAlertTimerId = setTimeout(clearTourAlert, TOUR_ALERT_VISIBLE_MS);
+  }
+
+  function clearTourAlert() {
+    if (tourAlertTimerId != null) clearTimeout(tourAlertTimerId);
+    tourAlertTimerId = null;
+    tourAlertEl.replaceChildren();
   }
 
   function onPositionError(err) {
@@ -406,8 +465,10 @@ export function render(container) {
   function stopTracking() {
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     if (timerId != null) clearInterval(timerId);
+    if (tourAlertTimerId != null) clearTimeout(tourAlertTimerId);
     watchId = null;
     timerId = null;
+    tourAlertTimerId = null;
   }
 
   // 라우터가 다른 화면으로 이동할 때 호출하는 정리 함수
