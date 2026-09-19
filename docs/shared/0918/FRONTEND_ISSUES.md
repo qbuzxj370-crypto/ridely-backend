@@ -160,6 +160,14 @@ Cordova 프론트엔드(`android-shell/`) 코드 리뷰 및 실사용 흐름 시
 
 **함께 발견·해결한 백엔드 문제**: 새 API `/pois/all`이 gzip 압축이 안 되던 것(강한 ETag가 Tomcat 압축을 꺼버림)을 실서버 헤더 확인으로 찾아 약한 ETag로 고쳤다 — 525KB → 약 108KB. 상세는 `NEARBY_INFRA_LOCAL_PLAN.md`.
 
+### 18. 서버·외부에서 온 문자열이 `innerHTML`에 그대로 들어가던 문제 (2026-09-20, `feature/nearby-infra-local`)
+
+**문제**: 경로 이름·사고다발지 이름·TourAPI 텍스트·오류 메시지 같은 서버/외부 문자열이 이스케이프 없이 `innerHTML`에 들어가는 곳이 여러 화면에 있었다. 토큰을 `localStorage`에 두고 있어, 값 하나에 스크립트가 섞이면 토큰 탈취로 이어질 수 있다(이번 작업 전부터 있던 문제, 전체 재검증 중 발견).
+
+**조치**: `js/dom.js`의 `escapeHtml`(`& < > " '` 치환)을 만들어 `auth`·`home`·`route-plan`·`mypage`·`saved-routes`·`riding`·`router`·`route-result`의 해당 지점에 적용. 관광지 상세 텍스트는 HTML 조각이 오므로 `escapeHtml` 대신 `toPlainText`(DOMParser로 텍스트만 추출)를 쓰고 이미지는 https만 허용한다. **앞으로 화면에 외부 문자열을 넣을 때는 `textContent`를 쓰거나 `escapeHtml`을 거칠 것.**
+
+**같은 재검증에서 함께 보완한 것**: 홈 화면 이탈 후 늦은 응답 무시, 반경 100~5000m 제한, 정밀 위치 실패 시 저정밀 재시도, 인프라 저장본 버전 확인, `id` 없는 관광 경유지의 상세 버튼 생략. 표는 `docs/shared/0919/NEARBY_INFRA_LOCAL_PLAN.md`의 「전체 재검증 결과」.
+
 ---
 
 ## 미해결 — 우선순위 낮음 (코드 리뷰로 발견, 아직 손 안 댐)
