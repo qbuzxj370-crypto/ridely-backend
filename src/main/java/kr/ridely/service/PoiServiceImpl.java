@@ -5,9 +5,13 @@ import kr.ridely.common.ErrorCode;
 import kr.ridely.config.MvpAreaProperties;
 import kr.ridely.dao.AccidentZoneSpatialDao;
 import kr.ridely.dao.PoiSpatialDao;
+import kr.ridely.dto.poi.PoiAllResponseDTO;
 import kr.ridely.dto.poi.PoiItemDTO;
 import kr.ridely.dto.poi.PoiNearbyResponseDTO;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -63,6 +67,35 @@ public class PoiServiceImpl implements PoiService {
      */
     private static final int MAX_PER_TYPE = 100;
 
+    private static final Logger log = LoggerFactory.getLogger(PoiServiceImpl.class);
+
+    /**
+     * 전체 조회 응답이 이 건수를 넘으면 경고를 남긴다.
+     *
+     * 전체 조회는 항상 전부를 내려주는 구조라 적재가 늘면 모든 사용자의 다운로드가 그만큼
+     * 커진다. 2026-09-19 기준 약 5,500건이다. 이 값은 실패시키는 한도가 아니라 「이제 구조를
+     * 다시 볼 때」를 알리는 신호다 - 넘으면 응답 슬림화·정적 파일 배포 등을 검토한다
+     * (docs/shared/0919/NEARBY_INFRA_LOCAL_PLAN.md).
+     */
+    static final int ALL_ITEMS_WARN_THRESHOLD = 10_000;
+
+    /**
+     * 전체 조회 결과를 서버 메모리에 두는 시간(초). 0이면 캐시하지 않는다.
+     *
+     * 이 API는 인증 없이 열려 있고(PUBLIC_PATHS), 백엔드에는 요청 제한이 따로 없다. 요청마다 네 테이블을
+     * 전부 읽고 약 525KB를 직렬화하는 구조라, 캐시가 없으면 반복 요청이 그대로 DB 부담이 된다.
+     * 적재 데이터는 배치로 가끔만 바뀌고 응답 헤더(Cache-Control 1시간)도 이미 그만큼의 낡음을
+     * 허용하므로, 서버에서 몇 분 들고 있는 것은 새로 생기는 손해가 없다.
+     *
+     * 단, 적재 직후에도 이 시간까지는 옛 목록이 나간다. 테스트는 이 값을 0으로 둔다
+     * (AbstractIntegrationTest) — 데이터를 바꾸고 바로 응답을 확인하기 때문이다.
+     */
+    @Value("${ridely.poi.all-cache-seconds:300}")
+    private long allCacheSeconds;
+
+    private volatile PoiAllResponseDTO allCache;
+    private volatile long allCacheLoadedNanos;
+
     private final PoiSpatialDao poiSpatialDao;
     private final AccidentZoneSpatialDao accidentZoneSpatialDao;
     private final MvpAreaProperties mvpArea;
@@ -99,5 +132,44 @@ public class PoiServiceImpl implements PoiService {
                 radiusM,
                 items,
                 items.size());
+    }
+
+    @Override
+    public PoiAllResponseDTO findAll() {
+        if (allCacheSeconds <= 0) {
+            return loadAll();
+        }
+        PoiAllResponseDTO cached = allCache;
+        if (cached != null && isFresh()) {
+            return cached;
+        }
+        // 캐시가 만료된 순간 요청이 몰려도 DB 조회는 한 번만 나가게 한다(뒤늦게 들어온 쪽은 갱신된 것을 쓴다)
+        synchronized (this) {
+            if (allCache == null || !isFresh()) {
+                allCache = loadAll();
+                allCacheLoadedNanos = System.nanoTime();
+            }
+            return allCache;
+        }
+    }
+
+    private boolean isFresh() {
+        return System.nanoTime() - allCacheLoadedNanos < allCacheSeconds * 1_000_000_000L;
+    }
+
+    private PoiAllResponseDTO loadAll() {
+        // 종류 순서를 고정한다. 응답 본문이 실행마다 같아야 ETag가 의미가 있다.
+        List<PoiItemDTO> items = new ArrayList<>();
+        items.addAll(poiSpatialDao.findAllRouteFacilities());
+        items.addAll(poiSpatialDao.findAllRepairShops());
+        items.addAll(poiSpatialDao.findAllBikeStations());
+        items.addAll(accidentZoneSpatialDao.findAll());
+
+        if (items.size() > ALL_ITEMS_WARN_THRESHOLD) {
+            log.warn("POI 전체 조회가 {}건이다(경고 기준 {}건). 모든 사용자의 다운로드가 이만큼 커졌다 - "
+                            + "응답 슬림화나 정적 파일 배포를 검토할 때다",
+                    items.size(), ALL_ITEMS_WARN_THRESHOLD);
+        }
+        return new PoiAllResponseDTO(items, items.size());
     }
 }
