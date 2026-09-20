@@ -15,8 +15,8 @@ const routes = {
 
 const TAB_ROUTES = ['home', 'saved-routes', 'riding', 'mypage'];
 
-// 탭바가 없는 화면 중 헤더에 뒤로가기가 필요한 라우트. 지금은 로그인/회원가입 화면뿐이다.
-const HEADER_BACK_ROUTES = ['auth'];
+// 탭바가 없는 화면 중 헤더에 뒤로가기가 필요한 라우트.
+const HEADER_BACK_ROUTES = ['auth', 'route-plan'];
 
 let currentCleanup = null;
 
