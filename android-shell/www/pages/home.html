@@ -7,6 +7,14 @@
 
   <div id="home-map" class="map-box" style="height:280px"></div>
 
+  <div class="card" id="home-tour-detail" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+      <strong>관광지 상세</strong>
+      <button class="btn btn-secondary" id="home-tour-close" style="width:auto; padding:4px 10px; font-size:13px">닫기</button>
+    </div>
+    <div id="home-tour-body"></div>
+  </div>
+
   <div class="card">
     <strong>주변 인프라 검색</strong>
     <div class="field" style="margin-top:8px">
@@ -21,6 +29,7 @@
       <label><input type="checkbox" class="home-type" value="REPAIR_SHOP" checked> 수리소</label>
       <label><input type="checkbox" class="home-type" value="BIKE_STATION" checked> 따릉이</label>
       <label><input type="checkbox" class="home-type" value="ACCIDENT_ZONE" checked> 사고다발지</label>
+      <label><input type="checkbox" id="home-tour" checked> 관광지</label>
     </div>
     <button class="btn btn-primary" id="home-infra-search">이 위치 주변 검색</button>
     <div id="infra-summary-body" class="empty-state" style="margin-top:8px">불러오는 중...</div>
