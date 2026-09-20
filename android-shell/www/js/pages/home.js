@@ -4,6 +4,7 @@ import { apiFetch } from '../api.js';
 import { buildTourCard } from '../tour-card.js';
 import { loadAllInfra, filterNearby } from '../infra-store.js';
 import { getCurrentPosition, describeGeoError } from '../geo.js';
+import { navigate } from '../router.js';
 
 // 여의도한강공원 — 서비스 지역 안이라 확인하기 좋다 (FRONTEND_GUIDE.md 5장).
 const DEFAULT_CENTER = { lat: 37.5265, lng: 126.9339 };
@@ -57,6 +58,12 @@ export function render(container) {
   let disposed = false;
 
   container.querySelector('#home-tour-close').addEventListener('click', hideTourDetail);
+
+  // location.hash를 직접 바꾸면(예전 onclick 방식) navigate()를 안 거쳐서 navStack에 'home'이
+  // 안 쌓인다 — 그러면 코스 추천 화면엔 탭바도 헤더 뒤로가기도 없어서(둘 다 route-plan을 목록에
+  // 안 넣었다) 메인으로 돌아갈 방법이 하드웨어 뒤로가기뿐인데, 그마저 navStack이 비어 있어 "한 번
+  // 더 누르면 종료" 취급을 받는다. navigate()를 써서 스택에 쌓는다.
+  container.querySelector('#home-route-plan-btn').addEventListener('click', () => navigate('route-plan'));
 
   initMap(container).then((m) => {
     map = m;
