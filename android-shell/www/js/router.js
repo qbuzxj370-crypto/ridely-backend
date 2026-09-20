@@ -1,6 +1,7 @@
 // 해시 라우터. 페이지 마크업(pages/*.html)을 fetch로 불러와 #app에 넣고,
-import { escapeHtml } from './dom.js';
 // 같은 이름의 js/pages/*.js 모듈의 render(container, params)를 호출한다.
+import { escapeHtml } from './dom.js';
+
 const routes = {
   home: { html: 'pages/home.html', mod: './pages/home.js' },
   auth: { html: 'pages/auth.html', mod: './pages/auth.js' },
