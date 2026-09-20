@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { escapeHtml } from '../dom.js';
 import { requireLoginOrRedirect, logout } from '../auth.js';
 import { navigate } from '../router.js';
 import { getSummary } from '../ride-storage.js';
@@ -35,7 +36,7 @@ async function loadSettings(container) {
     container.querySelector('#mp-sc').value = settings.defaultPriorityScenery;
     container.querySelector('#mp-avoid').checked = !!settings.avoidDangerZones;
   } catch (e) {
-    container.querySelector('#mp-settings-error').innerHTML = `<div class="error-banner">${e.message}</div>`;
+    container.querySelector('#mp-settings-error').innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -62,6 +63,6 @@ async function saveSettings(container) {
     });
     alert('저장했어요');
   } catch (e) {
-    errorBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
+    errorBox.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
   }
 }

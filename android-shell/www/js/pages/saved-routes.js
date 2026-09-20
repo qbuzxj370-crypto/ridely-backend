@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { escapeHtml } from '../dom.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import { navigate } from '../router.js';
 import state from '../state.js';
@@ -23,7 +24,7 @@ async function load(container) {
       el.className = 'card';
       el.style.cursor = 'pointer';
       el.innerHTML = `
-        <strong>${r.customName || r.aiTitle}</strong> ${r.isFavorite ? '⭐' : ''}
+        <strong>${escapeHtml(r.customName || r.aiTitle)}</strong> ${r.isFavorite ? '⭐' : ''}
         <div class="badge">${r.totalDistanceKm}km · ${r.estimatedDurationMin}분 · ${r.intensityLevel}</div>
       `;
       el.addEventListener('click', async () => {
@@ -38,6 +39,6 @@ async function load(container) {
       body.appendChild(el);
     });
   } catch (e) {
-    body.innerHTML = `<div class="error-banner">${e.message}</div>`;
+    body.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
   }
 }

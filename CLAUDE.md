@@ -54,6 +54,14 @@ Every endpoint returns `ApiResponse<T>` (`common/ApiResponse.java`): `{ success,
 
 Stateless JWT (`config/Jwt*`), no server-side sessions. `SecurityConfig.PUBLIC_PATHS` is the allowlist of unauthenticated routes — several are public by product design, not oversight (route recommendation and geo-search work for logged-out users so people can try the product before signing up; `userId` is stored as `NULL` for guest recommendations). **Any new public endpoint must be added to `PUBLIC_PATHS` explicitly**, otherwise it 401s. Access tokens are short-lived (15 min, not revocable); refresh tokens are DB-backed, rotating, and revocable.
 
+### Location privacy (a hard rule, not a preference)
+
+**The device's GPS position — raw, rounded, gridded, or derived (distance, speed, track) — must never be sent to the backend.** This is deliberate (location-information-law exposure; see `docs/shared/0918/LOCATION_PRIVACY_ARCHITECTURE.md`), so don't "helpfully" add a lat/lng parameter to a server call that the phone would fill from GPS. The accepted patterns:
+
+- Coordinates the user *chose* (a searched place, the map centre) may be sent — that is what route recommendation and `/pois/nearby` do.
+- "Near me" is done **on the phone**: `GET /api/v1/pois/all` takes **no parameters** and returns every loaded POI; the app stores it (`js/infra-store.js`) and filters by GPS locally. `PoiAllTest` pins this contract (extra location params must not change the response). Keep that response slim and keep it weak-ETag'd — a strong ETag silently disables Tomcat gzip.
+- Riding sessions are stored only in the app's `localStorage` (`js/ride-storage.js`); there are no server riding-session calls from the frontend.
+
 ### The route recommendation pipeline
 
 The core feature lives in `service/RouteRecommendServiceImpl.recommend()` and runs, per request:

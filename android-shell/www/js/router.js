@@ -1,5 +1,7 @@
 // 해시 라우터. 페이지 마크업(pages/*.html)을 fetch로 불러와 #app에 넣고,
 // 같은 이름의 js/pages/*.js 모듈의 render(container, params)를 호출한다.
+import { escapeHtml } from './dom.js';
+
 const routes = {
   home: { html: 'pages/home.html', mod: './pages/home.js' },
   auth: { html: 'pages/auth.html', mod: './pages/auth.js' },
@@ -67,7 +69,7 @@ async function renderRoute() {
     if (typeof result === 'function') currentCleanup = result;
   } catch (e) {
     console.error('page render failed', route, e);
-    container.innerHTML = `<div class="screen"><div class="error-banner">화면을 불러오지 못했어요: ${e.message}</div></div>`;
+    container.innerHTML = `<div class="screen"><div class="error-banner">화면을 불러오지 못했어요: ${escapeHtml(e.message)}</div></div>`;
   }
 
   updateTabbar(route);

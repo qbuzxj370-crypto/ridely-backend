@@ -1,9 +1,11 @@
 import { apiFetch } from '../api.js';
+import { escapeHtml } from '../dom.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import { navigate } from '../router.js';
 import state from '../state.js';
 import { createMap, drawPolyline, drawDangerZonePolygon, fitBounds } from '../map.js';
 import { newSessionId, saveCompletedSession } from '../ride-storage.js';
+import { haversineM } from '../geo.js';
 
 // 여의도한강공원 — 추천 코스도 없고 GPS 첫 위치도 아직 없을 때 지도 초기 중심
 const FALLBACK_CENTER = { lat: 37.5265, lng: 126.9339 };
@@ -32,17 +34,6 @@ const MAX_PLAUSIBLE_KMH = 45;
 // (실측 2026-09-17: 지쿠터 테스트 중 실제로 겪었다). 이 키에 매 GPS 갱신마다 저장해두면
 // 앱이 다시 켜졌을 때 render()가 이어서 추적을 재개할 수 있다.
 const STORAGE_KEY = 'ridely.riding.active_session';
-
-function haversineM(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 export function render(container) {
   if (!requireLoginOrRedirect('riding')) return;
@@ -116,12 +107,12 @@ export function render(container) {
         const row = document.createElement('div');
         row.className = 'list-item';
         row.style.cursor = 'pointer';
-        row.innerHTML = `<span>${r.customName || r.aiTitle}</span><span class="badge">${r.totalDistanceKm}km</span>`;
+        row.innerHTML = `<span>${escapeHtml(r.customName || r.aiTitle)}</span><span class="badge">${r.totalDistanceKm}km</span>`;
         row.addEventListener('click', () => selectSavedRoute(r.recommendedRouteId));
         savedListEl.appendChild(row);
       });
     } catch (e) {
-      savedListEl.innerHTML = `<div class="error-banner">${e.message}</div>`;
+      savedListEl.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -132,7 +123,7 @@ export function render(container) {
       dangerZones = route.passingDangerZones || [];
       updateSelectedSummary();
     } catch (e) {
-      alertEl.innerHTML = `<div class="error-banner">코스를 불러오지 못했어요: ${e.message}</div>`;
+      alertEl.innerHTML = `<div class="error-banner">코스를 불러오지 못했어요: ${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -377,7 +368,7 @@ export function render(container) {
       const d = haversineM(lat, lng, zone.lat, zone.lng);
       if (d <= DANGER_ALERT_DISTANCE_M) {
         alertedZones.add(idx);
-        dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${zone.name || ''}</div>`;
+        dangerAlertEl.innerHTML = `<div class="error-banner">⚠️ 사고다발지 근접 (${Math.round(d)}m) — ${escapeHtml(zone.name || '')}</div>`;
       }
     });
   }
@@ -422,7 +413,7 @@ export function render(container) {
   }
 
   function onPositionError(err) {
-    alertEl.innerHTML = `<div class="error-banner">위치 추적 오류: ${err.message}</div>`;
+    alertEl.innerHTML = `<div class="error-banner">위치 추적 오류: ${escapeHtml(err.message)}</div>`;
   }
 
   function updateElapsed() {

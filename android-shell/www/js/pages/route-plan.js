@@ -1,4 +1,5 @@
 import { apiFetch, newIdempotencyKey } from '../api.js';
+import { escapeHtml } from '../dom.js';
 import { navigate } from '../router.js';
 import { isLoggedIn } from '../auth.js';
 import state from '../state.js';
@@ -86,7 +87,7 @@ function wireSearch(container, which) {
         const row = document.createElement('div');
         row.className = 'list-item';
         row.style.cursor = 'pointer';
-        row.innerHTML = `<span>${place.placeName}${place.inServiceArea ? '' : ' <span class="badge badge-danger">지역 밖</span>'}</span>`;
+        row.innerHTML = `<span>${escapeHtml(place.placeName)}${place.inServiceArea ? '' : ' <span class="badge badge-danger">지역 밖</span>'}</span>`;
         if (place.inServiceArea) {
           row.addEventListener('click', () => {
             const picked = { lat: place.lat, lng: place.lng, placeName: place.placeName };
@@ -101,7 +102,7 @@ function wireSearch(container, which) {
         resultsBox.appendChild(row);
       });
     } catch (e) {
-      resultsBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
+      resultsBox.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
     }
   });
 }
@@ -175,7 +176,7 @@ async function submit(container) {
     navigate('route-result');
   } catch (e) {
     lastFailedRequest = { key: idempotencyKey, bodyJson };
-    errorBox.innerHTML = `<div class="error-banner">${e.message}</div>`;
+    errorBox.innerHTML = `<div class="error-banner">${escapeHtml(e.message)}</div>`;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = '코스 추천 받기';
