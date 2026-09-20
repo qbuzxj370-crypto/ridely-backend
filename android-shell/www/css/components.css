@@ -64,6 +64,18 @@
   margin-bottom: 12px;
 }
 
+/* 안전과 무관한 일반 안내(관광지 근접 등). error-banner(빨강)와 색이 달라야 한다 — 같은
+   색이면 관광 안내가 사고다발지 경고처럼 보이고, 반대로 진짜 경고가 묻힌다. */
+.info-banner {
+  background: #e8f3f1;
+  border-left: 4px solid var(--color-primary);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 .empty-state {
   text-align: center;
   color: var(--color-text-secondary);
@@ -94,12 +106,124 @@
   color: var(--color-danger);
 }
 
+/* 관광지 배지 — 인프라 배지(회색)와 구분해서 코스에 관광지가 들어 있다는 게 눈에 띄게 한다.
+   글자색은 accent(#FF7A45)가 연한 배경에서 대비가 낮아 더 진한 주황을 쓴다. */
+.badge-tour {
+  background: #fff1ea;
+  color: #b4471b;
+}
+
 .list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid #eef2f1;
+}
+
+/* 추천 결과의 경유지 목록. 한 항목 = 머리줄(배지·이름·거리) + AI가 쓴 이유 문장 */
+.wp-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #eef2f1;
+  cursor: pointer;
+}
+
+.wp-item:last-child {
+  border-bottom: none;
+}
+
+.wp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wp-name {
+  font-weight: 700;
+}
+
+.wp-dist {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* 관광지 항목 안에서 펼쳐지는 상세 영역과 카드(js/tour-card.js) */
+.wp-more {
+  margin-left: auto;
+  font-size: 12px;
+  color: #b4471b;
+}
+
+/* 거리 표시가 있으면 그쪽이 auto 마진으로 오른쪽을 차지하므로 이건 그 바로 옆에 붙는다 */
+.wp-dist ~ .wp-more {
+  margin-left: 0;
+}
+
+.wp-detail {
+  margin-top: 10px;
+  cursor: default;
+}
+
+.wp-detail-status {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* 홈 지도의 관광지 마커(map.js addTourMarker) */
+.tour-pin {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tour-card {
+  background: #fff8f4;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.tour-card-thumb {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.tour-card-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tour-card-meta {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+
+.tour-card-overview {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
+.wp-reason {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
 }
 
 /* 뒤로가기로 앱 종료 확인용 — router.js의 backbutton 핸들러가 씀 */

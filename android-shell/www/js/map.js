@@ -39,6 +39,25 @@ export function addMarker(map, lat, lng, title) {
   return marker;
 }
 
+// 관광지 마커. 인프라 마커(기본 파란 핀)와 한눈에 갈리도록 주황 원형으로 그리고, 눌렀을 때
+// 동작을 붙일 수 있다. 기본 Marker는 이미지 리소스가 필요해서 DOM 요소를 올리는 CustomOverlay를
+// 쓴다. 반환값은 Marker처럼 setMap(null)로 지울 수 있다(홈 화면이 인프라 마커와 한 배열로 관리).
+export function addTourMarker(map, lat, lng, title, onClick) {
+  const pin = document.createElement('div');
+  pin.className = 'tour-pin';
+  pin.textContent = '🏞️';
+  pin.title = title || '';
+  if (onClick) pin.addEventListener('click', onClick);
+  const overlay = new kakao.maps.CustomOverlay({
+    position: new kakao.maps.LatLng(lat, lng),
+    content: pin,
+    yAnchor: 1,
+    clickable: true, // 이게 없으면 눌림이 지도 쪽으로 넘어가 핸들러가 안 불린다
+  });
+  overlay.setMap(map);
+  return overlay;
+}
+
 export function drawPolyline(map, coordinates) {
   // coordinates: [[lng, lat], ...] (GeoJSON 순서)
   const path = coordinates.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));
@@ -66,6 +85,12 @@ export function drawDangerZonePolygon(map, coordinates) {
   });
   polygon.setMap(map);
   return polygon;
+}
+
+// 목록에서 항목을 눌렀을 때 지도를 그 지점으로 부드럽게 옮긴다. setCenter는 순간이동이라
+// 어디로 갔는지 놓치기 쉽다. 마커를 줌 변경 없이 화면 중앙으로 가져오는 용도다.
+export function panTo(map, lat, lng) {
+  map.panTo(new kakao.maps.LatLng(lat, lng));
 }
 
 export function fitBounds(map, latLngList) {

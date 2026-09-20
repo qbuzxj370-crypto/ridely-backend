@@ -7,12 +7,15 @@
          속성 때문에 필요하다 (예: index.html의 탭바 버튼). 'unsafe-eval'은 카카오맵 JS SDK가
          내부적으로 써서 뺄 수 없었다(제거 시 지도 로드 실패).
          connect-src의 http://localhost:8080·http://10.0.2.2:8080은 로컬 개발용 백엔드 주소다 —
-         배포 시 실제 API 주소로 바꿔야 한다 (js/api.js의 API_BASE와 같이 바꿀 것). -->
+         배포 시 실제 API 주소로 바꿔야 한다 (js/api.js의 API_BASE와 같이 바꿀 것).
+         img-src의 tong.visitkorea.or.kr은 관광지 상세 카드의 사진(TourAPI) 도메인이다. 서버가
+         원본 http 주소를 https로 바꿔 내려주므로(FRONTEND_GUIDE.md 5장 「관광지」) 이 도메인이
+         빠지면 사진만 조용히 안 뜬다. -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://dapi.kakao.com https://*.daumcdn.net;
         style-src 'self' 'unsafe-inline' https://*.daumcdn.net;
-        img-src 'self' data: blob: https://*.daumcdn.net https://*.kakao.com;
+        img-src 'self' data: blob: https://tong.visitkorea.or.kr https://*.daumcdn.net https://*.kakao.com;
         connect-src 'self' https://d2ym1ymgumwyg8.cloudfront.net http://localhost:8080 http://10.0.2.2:8080 https://dapi.kakao.com https://*.daumcdn.net;
         font-src 'self' data:;
     ">
