@@ -83,8 +83,30 @@ spring:
     #
     #    prod는 application-prod.yml이 bedrock-converse로 덮는다.
     #    여기 기본값이 없으면 prod만 뜨고 로컬·테스트는 전부 죽는다.
+    #
+    #    LLM_PROVIDER 환경변수로 공급자를 바꿀 수 있다: google-genai | bedrock-converse | openai.
+    #    openai는 계정 관리자가 발급한 LiteLLM 게이트웨이(OpenAI 호환) 경로다. 2026-09-29에
+    #    Bedrock 직접 권한이 회수되므로 그 뒤 운영은 이 값이 openai여야 한다.
     model:
-      chat: google-genai
+      chat: ${LLM_PROVIDER:google-genai}
+      # ⚠️ openai 스타터는 채팅 말고도 임베딩·이미지·음성·모더레이션 자동설정이 딸려 오고, 전부
+      #    matchIfMissing=true라 선택자가 없으면 켜진다. 켜지면 API 키를 요구해서 키 없는
+      #    로컬·테스트 기동이 깨진다. 우리는 채팅만 쓰므로 나머지는 끈다.
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    # OpenAI 호환 게이트웨이. 값은 전부 환경변수로만 준다 — 저장소가 공개라 주소·키를 적지 않는다.
+    # base-url에는 /v1을 붙이지 않는다(Spring AI가 /v1/chat/completions를 덧붙인다).
+    # 모델 별칭은 게이트웨이가 정한다: bedrock-haiku | bedrock-sonnet | bedrock-gpt-5.6-luna.
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:bedrock-sonnet}
     google:
       genai:
         chat:

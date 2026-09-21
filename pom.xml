@@ -269,6 +269,14 @@
             <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
         </dependency>
 
+        <!-- OpenAI 호환 게이트웨이(LiteLLM)용. Bedrock Claude를 Marketplace 구독 없이 쓰려고 붙였다.
+             기본 공급자는 아니고 prod에서 LLM_PROVIDER=openai일 때만 켜진다(application-prod.yml).
+             이 스타터는 임베딩·이미지·음성·모더레이션 자동설정도 딸려 오므로 yml에서 전부 none으로 끈다. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+
         <!-- 임베딩 (text-embedding-004, 768차원) 배포 단계에서 활성화-->
         <!--
         <dependency>

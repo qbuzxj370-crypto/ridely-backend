@@ -6,10 +6,22 @@
 # (GenAiClientConfig는 이 셀렉터와 무관한 수동 @Bean이라 별도로 @Profile("!prod")로 막아뒀다.)
 #
 # AWS 자격증명은 여기 없다 — EC2 인스턴스 역할(IAM)의 기본 자격증명 체인을 그대로 탄다.
+#
+# 2026-09-29에 Bedrock 직접 호출 권한이 회수된다(계정 관리자 공지). 그 뒤에는 EC2 .env에
+# LLM_PROVIDER=openai + OPENAI_BASE_URL/OPENAI_API_KEY를 두고 게이트웨이(LiteLLM)로만 부른다.
+# 기본값은 bedrock-converse로 남겨 둔다 — 키를 넣기 전에는 지금 동작이 그대로이고, .env 한 줄로
+# 전환·복귀가 된다.
 spring:
+  http:
+    client:
+      # openai 경로 전용 효과다(Spring AI OpenAI가 Boot의 RestClient.Builder를 쓴다). Bedrock은
+      # 위의 bedrock.aws.timeout, Gemini는 GenAiClientConfig가 따로 건다. ridely.ai.llm.timeout-seconds(15)와
+      # 같은 값이라 전송 타임아웃이 보조 타임아웃(+5초)보다 먼저 발동한다.
+      connect-timeout: 5s
+      read-timeout: 15s
   ai:
     model:
-      chat: bedrock-converse
+      chat: ${LLM_PROVIDER:bedrock-converse}
     bedrock:
       aws:
         region: ${BEDROCK_REGION:us-east-1}
