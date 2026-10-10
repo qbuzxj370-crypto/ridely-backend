@@ -149,26 +149,76 @@
   color: var(--color-text-secondary);
 }
 
-/* 관광지 항목 안에서 펼쳐지는 상세 영역과 카드(js/tour-card.js) */
-.wp-more {
-  margin-left: auto;
-  font-size: 12px;
-  color: #b4471b;
-}
-
-/* 거리 표시가 있으면 그쪽이 auto 마진으로 오른쪽을 차지하므로 이건 그 바로 옆에 붙는다 */
-.wp-dist ~ .wp-more {
-  margin-left: 0;
-}
-
-.wp-detail {
-  margin-top: 10px;
-  cursor: default;
-}
-
 .wp-detail-status {
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.wp-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+}
+
+.wp-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(26, 31, 30, 0.48);
+}
+
+.wp-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 18px 18px 0 0;
+  background: var(--color-surface);
+  padding: 20px 18px max(24px, env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.wp-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.wp-sheet-header h3 {
+  margin: 8px 0 0;
+}
+
+.wp-sheet-close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wp-sheet-distance {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.wp-sheet-body {
+  margin-top: 16px;
+}
+
+.wp-sheet-line {
+  display: flex;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 14px;
+}
+
+.wp-sheet-line strong {
+  flex: none;
 }
 
 /* 홈 지도의 내 위치 표시(map.js addMeMarker) */
