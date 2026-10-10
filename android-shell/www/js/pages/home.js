@@ -1,4 +1,4 @@
-import { createMap, addMarker, addTourMarker, addMeMarker } from '../map.js';
+import { createMap, addMarker, addTourMarker, addMeMarker, relayoutMap } from '../map.js';
 import { escapeHtml } from '../dom.js';
 import { apiFetch } from '../api.js';
 import { buildTourCard } from '../tour-card.js';
@@ -53,9 +53,6 @@ export function render(container) {
   // 인프라·관광지 두 요청이 나가므로 검색을 연달아 누르면 늦게 온 옛 응답이 새 결과를 덮을
   // 수 있다. 가장 최근 검색의 응답만 화면에 반영한다.
   let searchSeq = 0;
-  // 화면을 떠난 뒤(라우터가 cleanup을 부른 뒤)에 늦게 도착한 응답이 이미 사라진 화면의 지도·DOM을
-  // 건드리거나 불필요한 요청을 이어가지 않게 한다.
-  let disposed = false;
 
   container.querySelector('#home-tour-close').addEventListener('click', hideTourDetail);
 
@@ -67,7 +64,7 @@ export function render(container) {
 
   initMap(container).then((m) => {
     map = m;
-    if (map && !disposed) searchInfra(container, map, DEFAULT_CENTER);
+    if (map) searchInfra(container, map, DEFAULT_CENTER);
   });
 
   wireLocationSearch(container, () => map, (nextMap) => { map = nextMap; }, (marker) => {
@@ -91,7 +88,7 @@ export function render(container) {
   function showTourDetail(tour) {
     const box = container.querySelector('#home-tour-detail');
     const body = container.querySelector('#home-tour-body');
-    if (!box || !body) return; // 마커를 누르기 전에 다른 탭으로 넘어간 경우
+    if (!box || !body) return;
     // /tours/nearby의 항목은 상세 조회와 같은 TourAttractionDTO(개요까지 포함)라
     // GET /tours/{id}를 다시 부르지 않고 목록 데이터로 바로 카드를 그린다.
     body.replaceChildren(buildTourCard(tour));
@@ -141,20 +138,20 @@ export function render(container) {
     try {
       position = await getCurrentPosition();
     } catch (e) {
-      if (!disposed && seq === searchSeq) say(describeGeoError(e));
+      if (seq === searchSeq) say(describeGeoError(e));
       return;
     }
-    if (disposed || seq !== searchSeq) return;
+    if (seq !== searchSeq) return;
 
     say('주변 인프라를 불러오는 중...');
     let all;
     try {
       all = await loadAllInfra();
     } catch (e) {
-      if (!disposed && seq === searchSeq) say('인프라 정보를 불러오지 못했어요 (' + ((e && e.message) || '오류') + ')');
+      if (seq === searchSeq) say('인프라 정보를 불러오지 못했어요 (' + ((e && e.message) || '오류') + ')');
       return;
     }
-    if (disposed || seq !== searchSeq) return;
+    if (seq !== searchSeq) return;
 
     const { latitude: lat, longitude: lng } = position.coords;
     const nearby = filterNearby(all.items, lat, lng, radiusM, types);
@@ -182,8 +179,7 @@ export function render(container) {
 
   async function searchInfra(cont, mapInstance, center) {
     const summaryEl = cont.querySelector('#infra-summary-body');
-    // 카카오맵 첫 로딩(몇 초 걸릴 수 있음)이 끝나기 전에 사용자가 다른 탭으로 넘어가면,
-    // 이 콜백이 뒤늦게 실행될 때 cont는 이미 다른 화면의 DOM이라 이 요소가 없다.
+    // 홈 탭이 숨겨진 동안에도 첫 지도 로딩의 응답이 도착할 수 있다.
     if (!summaryEl) return;
     const radiusM = parseInt(cont.querySelector('#home-radius').value, 10) || 1000;
     const types = Array.from(cont.querySelectorAll('.home-type:checked')).map((el) => el.value);
@@ -208,7 +204,7 @@ export function render(container) {
       : Promise.resolve(null);
     const tourRequest = includeTours ? fetchNearbyTours(center, radiusM) : Promise.resolve(null);
     const [infra, tours] = await Promise.allSettled([infraRequest, tourRequest]);
-    if (disposed || seq !== searchSeq) return;
+    if (seq !== searchSeq) return;
 
     const infraFailed = types.length > 0 && infra.status === 'rejected';
     const toursFailed = includeTours && tours.status === 'rejected';
@@ -255,10 +251,7 @@ export function render(container) {
     }
   }
 
-  // 라우터가 다른 화면으로 이동할 때 호출한다
-  return function cleanup() {
-    disposed = true;
-  };
+  return { onShow: () => { if (map) relayoutMap(map); } };
 }
 
 /** 장소 검색으로 지도를 이동한다 — route-plan.js의 검색 패턴과 동일 */

@@ -153,7 +153,7 @@ async function submit(container) {
   const avoid = container.querySelector('#rp-avoid').checked;
   const headers = !isLoggedIn() && avoid ? { 'X-Ridely-Avoid-Danger-Zones': 'true' } : {};
 
-  submitBtn.textContent = '코스를 만드는 중... (최대 15초)';
+  submitBtn.innerHTML = '<span class="spinner-inline" aria-hidden="true"></span>코스를 만드는 중... (최대 15초)';
 
   // 직전 실패 시도랑 요청 내용이 완전히 같으면(=같은 입력으로 재시도) 그 키를 재사용하고,
   // 아니면(첫 시도 또는 입력을 바꿈) 새 키를 만든다.

@@ -79,7 +79,7 @@ function renderWaypoints(container, waypoints, getMap) {
     return da < db ? -1 : 1;
   });
 
-  ordered.forEach((wp) => {
+  ordered.forEach((wp, index) => {
     const item = document.createElement('div');
     item.className = 'wp-item';
 
@@ -118,6 +118,7 @@ function renderWaypoints(container, waypoints, getMap) {
       openSheet = openWaypointSheet(container, wp);
     });
     listEl.appendChild(item);
+    item.style.animationDelay = `${Math.min(index, 10) * 40}ms`;
   });
 
   container.querySelector('#rr-waypoints-card').style.display = 'block';
@@ -128,6 +129,17 @@ function showSheetStatus(body, message) {
   const el = document.createElement('div');
   el.className = 'wp-detail-status';
   el.textContent = message;
+  body.appendChild(el);
+}
+
+function showSheetLoading(body, message) {
+  body.replaceChildren();
+  const el = document.createElement('div');
+  el.className = 'wp-detail-status';
+  const spinner = document.createElement('span');
+  spinner.className = 'spinner-inline';
+  spinner.setAttribute('aria-hidden', 'true');
+  el.append(spinner, document.createTextNode(message));
   body.appendChild(el);
 }
 
@@ -168,6 +180,36 @@ function renderInfraDetail(body, wp, item) {
   if (!body.hasChildNodes()) showSheetStatus(body, '추가 정보가 없어요');
 }
 
+const SHEET_DISMISS_DISTANCE = 90;
+
+function wireSheetDrag(header, sheet, dismiss) {
+  let startY = 0;
+  let dy = 0;
+  let dragging = false;
+
+  header.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    dragging = true;
+    sheet.style.transition = 'none';
+  }, { passive: true });
+
+  header.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    dy = Math.max(0, e.touches[0].clientY - startY);
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+
+  header.addEventListener('touchend', () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (dy > SHEET_DISMISS_DISTANCE) dismiss();
+    dy = 0;
+  }, { passive: true });
+}
+
 function openWaypointSheet(container, wp) {
   const root = container.querySelector('.screen');
   const overlay = document.createElement('div');
@@ -198,7 +240,11 @@ function openWaypointSheet(container, wp) {
   close.className = 'wp-sheet-close';
   close.setAttribute('aria-label', '닫기');
   close.textContent = '×';
-  const dismiss = () => overlay.remove();
+  const dismiss = () => {
+    overlay.classList.remove('open');
+    setTimeout(() => overlay.remove(), 250); // Match .wp-sheet transition duration.
+  };
+  wireSheetDrag(header, sheet, dismiss);
   close.addEventListener('click', dismiss);
   backdrop.addEventListener('click', dismiss);
   header.append(heading, close);
@@ -214,11 +260,12 @@ function openWaypointSheet(container, wp) {
   }
   overlay.append(backdrop, sheet);
   root.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
 
   if (wp.id == null) {
     showSheetStatus(body, '추가 정보가 없어요');
   } else if (wp.type === 'TOUR_ATTRACTION') {
-    showSheetStatus(body, '불러오는 중...');
+    showSheetLoading(body, '불러오는 중...');
     fetchTourDetail(wp.id).then((tour) => {
       if (overlay.isConnected) body.replaceChildren(buildTourCard(tour));
     }).catch((e) => {
@@ -228,7 +275,7 @@ function openWaypointSheet(container, wp) {
         : `${e.message || '불러오지 못했어요'} — 다시 눌러 재시도해요`);
     });
   } else {
-    showSheetStatus(body, '불러오는 중...');
+    showSheetLoading(body, '불러오는 중...');
     loadAllInfra().then(({ items }) => {
       if (overlay.isConnected) renderInfraDetail(body, wp,
         items.find((item) => item.type === wp.type && item.id === wp.id));

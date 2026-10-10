@@ -30,6 +30,10 @@ export async function createMap(containerId, { lat, lng, level = 4 }) {
   });
 }
 
+export function relayoutMap(map) {
+  if (map && typeof map.relayout === 'function') map.relayout();
+}
+
 export function addMarker(map, lat, lng, title) {
   const marker = new kakao.maps.Marker({
     position: new kakao.maps.LatLng(lat, lng),

@@ -5,8 +5,12 @@ import { navigate } from '../router.js';
 import state from '../state.js';
 
 export function render(container) {
-  if (!requireLoginOrRedirect('saved-routes')) return;
+  if (!requireLoginOrRedirect('saved-routes')) return null;
   load(container);
+  return { onShow: () => {
+    if (!requireLoginOrRedirect('saved-routes')) return false;
+    load(container);
+  } };
 }
 
 async function load(container) {
