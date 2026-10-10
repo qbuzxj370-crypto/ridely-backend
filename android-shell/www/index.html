@@ -35,20 +35,39 @@
 </head>
 <body>
     <div id="app-shell">
-        <header id="app-header"><span>Ridely</span><button id="header-back-btn" class="header-back-btn" style="display:none">&lt;</button></header>
+        <header id="app-header">
+            <span class="app-brand">
+                <img src="img/logo.png" class="app-logo" alt="" aria-hidden="true">
+                <span class="app-title">Ridely</span>
+            </span>
+            <button id="header-back-btn" class="header-back-btn" style="display:none">&lt;</button>
+        </header>
         <main id="app"><div id="tab-views"></div><div id="page-view" style="display:none"></div></main>
         <nav id="tabbar">
             <button class="tab-btn" data-route="home" onclick="location.hash='#/home'">
-                <span class="tab-icon">🏠</span><span>홈</span>
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/>
+                    <path d="M9 21v-7h6v7"/>
+                </svg><span>홈</span>
             </button>
             <button class="tab-btn" data-route="saved-routes" onclick="location.hash='#/saved-routes'">
-                <span class="tab-icon">📌</span><span>저장 경로</span>
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 3h12v18l-6-4-6 4V3Z"/>
+                </svg><span>저장 경로</span>
             </button>
             <button class="tab-btn" data-route="riding" onclick="location.hash='#/riding'">
-                <span class="tab-icon">🚴</span><span>라이딩</span>
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="5" cy="18" r="3"/>
+                    <circle cx="19" cy="18" r="3"/>
+                    <circle cx="15" cy="4" r="2"/>
+                    <path d="m13 8-3 4 4 3 2-4 3 2M10 12l-5 6m9-3-2 3H5m11-7 3 7"/>
+                </svg><span>라이딩</span>
             </button>
             <button class="tab-btn" data-route="mypage" onclick="location.hash='#/mypage'">
-                <span class="tab-icon">👤</span><span>마이페이지</span>
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 21a8 8 0 0 1 16 0"/>
+                </svg><span>마이페이지</span>
             </button>
             <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
         </nav>

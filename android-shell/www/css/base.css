@@ -28,8 +28,26 @@ html, body {
   padding: 0 16px;
   background: var(--color-surface);
   border-bottom: 1px solid #e7ebe9;
-  font-weight: 700;
-  font-size: 17px;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 -14px;
+  display: block;
+}
+
+.app-title {
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.2px;
 }
 
 .header-back-btn {
@@ -92,7 +110,9 @@ html, body {
 }
 
 .tab-btn .tab-icon {
-  font-size: 20px;
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .screen {
