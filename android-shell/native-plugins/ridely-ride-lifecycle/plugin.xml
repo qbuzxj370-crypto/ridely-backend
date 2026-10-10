@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        id="kr.ridely.ride-lifecycle" version="1.0.0">
+    <name>RidelyRideLifecycle</name>
+    <js-module src="www/ridely-ride-lifecycle.js" name="RidelyRideLifecycle">
+        <clobbers target="cordova.plugins.ridelyRideLifecycle" />
+    </js-module>
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="RidelyRideLifecycle">
+                <param name="android-package" value="kr.ridely.app.RidelyRideLifecyclePlugin" />
+            </feature>
+        </config-file>
+        <source-file src="src/android/RidelyRideLifecyclePlugin.java" target-dir="src/kr/ridely/app" />
+    </platform>
+</plugin>

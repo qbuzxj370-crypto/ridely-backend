@@ -1,0 +1,9 @@
+{
+  "name": "kr.ridely.ride-lifecycle",
+  "version": "1.0.0",
+  "description": "Tracks ride activity destruction for Cordova Android",
+  "cordova": {
+    "id": "kr.ridely.ride-lifecycle",
+    "platforms": ["android"]
+  }
+}

@@ -16,7 +16,8 @@
     "cordova-android": "^15.1.0",
     "cordova-browser": "^7.0.0",
     "cordova-plugin-geolocation": "^5.0.0",
-    "cordova-plugin-splashscreen": "^6.0.1"
+    "cordova-plugin-splashscreen": "^6.0.1",
+    "kr.ridely.ride-lifecycle": "file:native-plugins/ridely-ride-lifecycle"
   },
   "cordova": {
     "platforms": [
@@ -27,7 +28,8 @@
       "cordova-plugin-geolocation": {
         "GPS_REQUIRED": "true"
       },
-      "cordova-plugin-splashscreen": {}
+      "cordova-plugin-splashscreen": {},
+      "kr.ridely.ride-lifecycle": {}
     }
   }
 }

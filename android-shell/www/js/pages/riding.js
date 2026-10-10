@@ -35,6 +35,18 @@ const MAX_PLAUSIBLE_KMH = 45;
 // 앱이 다시 켜졌을 때 render()가 이어서 추적을 재개할 수 있다.
 const STORAGE_KEY = 'ridely.riding.active_session';
 
+function callNative(action, ...args) {
+  return new Promise((resolve) => {
+    const plugin = window.cordova && window.cordova.plugins && window.cordova.plugins.ridelyRideLifecycle;
+    const fallback = action === 'consumePendingForceEnd' ? 0 : null;
+    if (!plugin || typeof plugin[action] !== 'function') {
+      resolve(fallback);
+      return;
+    }
+    plugin[action](...args, resolve, () => resolve(fallback));
+  });
+}
+
 export function render(container) {
   if (!requireLoginOrRedirect('riding')) return;
 
@@ -45,6 +57,8 @@ export function render(container) {
   let lastFix = null;    // 이동거리 누적 기준점 — 매 GPS 갱신마다 갱신, 샘플링과 무관
   let track = []; // [lng, lat]
   let distanceM = 0;
+  let isPaused = false;
+  let suspendedByBackground = false;
   let instantSpeedKmh = 0;
   let sessionId = null;
   let alertedZones = new Set();
@@ -66,6 +80,8 @@ export function render(container) {
   const speedEl = container.querySelector('#riding-speed');
   const instantSpeedEl = container.querySelector('#riding-instant-speed');
   const alertEl = container.querySelector('#riding-alert');
+  const idleNoticeEl = container.querySelector('#riding-idle-notice');
+  const pauseNoticeEl = container.querySelector('#riding-pause-notice');
   // 사고다발지 근접 경고 전용 슬롯. alertEl과 같이 쓰면 이어서 추적 안내·GPS 에러·종료 실패
   // 같은 일반 메시지가 뒤이어 뜰 때 안전 경고가 그대로 덮여서 사라졌다 — 안전 관련이라 분리한다.
   const dangerAlertEl = container.querySelector('#riding-danger-alert');
@@ -76,6 +92,7 @@ export function render(container) {
   const selectedSummary = container.querySelector('#riding-selected-summary');
   const savedListEl = container.querySelector('#riding-saved-list');
   const endBtn = container.querySelector('#riding-end');
+  const pauseBtn = container.querySelector('#riding-pause');
 
   container.querySelector('#riding-start').addEventListener('click', startRiding);
   container.querySelector('#riding-start-free').addEventListener('click', () => {
@@ -88,6 +105,12 @@ export function render(container) {
     startRiding();
   });
   endBtn.addEventListener('click', endRiding);
+  pauseBtn.addEventListener('click', () => {
+    if (isPaused) resumeFromPause();
+    else pauseRiding();
+  });
+  document.addEventListener('pause', onAppPause, false);
+  document.addEventListener('resume', onAppResume, false);
 
   updateSelectedSummary();
   loadSavedRoutes();
@@ -146,6 +169,7 @@ export function render(container) {
     startedAt = Date.now();
     track = [];
     distanceM = 0;
+    isPaused = false;
     instantSpeedKmh = 0;
     lastSample = null;
     lastFix = null;
@@ -162,6 +186,7 @@ export function render(container) {
     await initMap();
     beginTracking();
     saveProgress();
+    callNative('setActive', true);
   }
 
   /**
@@ -178,6 +203,13 @@ export function render(container) {
       return;
     }
 
+    const wasForceEnded = !!(await callNative('consumePendingForceEnd'));
+    if (wasForceEnded && !saved.isPaused) {
+      const payload = finalizeSavedSession(saved);
+      idleNoticeEl.innerHTML = `<div class="info-banner">이전 라이딩이 앱 종료로 자동 종료되었어요 (${payload.distanceKm.toFixed(2)}km).</div>`;
+      return;
+    }
+
     sessionId = saved.sessionId;
     startedAt = saved.startedAt;
     distanceM = saved.distanceM || 0;
@@ -185,6 +217,7 @@ export function render(container) {
     alertedZones = new Set(saved.alertedZones || []);
     // 재개된 세션에서 이미 안내한 관광지를 또 알리지 않는다(예전에 저장된 진행 기록엔 이 필드가 없다)
     alertedTours = new Set(saved.alertedTours || []);
+    isPaused = !!saved.isPaused;
     lastSample = track.length
       ? { lat: track[track.length - 1][1], lng: track[track.length - 1][0], time: Date.now() }
       : null;
@@ -199,14 +232,21 @@ export function render(container) {
 
     idleBox.style.display = 'none';
     activeBox.style.display = 'block';
-    alertEl.innerHTML = '<div class="error-banner">이전 라이딩이 중단됐던 걸 이어서 추적합니다.</div>';
+    alertEl.innerHTML = isPaused
+      ? '<div class="info-banner">일시중지된 라이딩이에요. 계속하기를 누르면 추적합니다.</div>'
+      : '<div class="info-banner">이전 라이딩이 중단됐던 걸 이어서 추적합니다.</div>';
     distanceEl.textContent = (distanceM / 1000).toFixed(2);
 
     await initMap();
     traveledPath = track.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));
     if (traveledPolyline) traveledPolyline.setPath(traveledPath);
 
-    beginTracking();
+    if (isPaused) {
+      setPauseButtonState(true);
+    } else {
+      beginTracking();
+      callNative('setActive', true);
+    }
   }
 
   function beginTracking() {
@@ -228,6 +268,8 @@ export function render(container) {
         alertedZones: Array.from(alertedZones),
         alertedTours: Array.from(alertedTours),
         recommendedRouteId: state.lastRecommend ? state.lastRecommend.recommendedRouteId : null,
+        lastUpdatedAt: Date.now(),
+        isPaused,
       }));
     } catch (e) { /* localStorage 꽉 찼거나 비활성화면 무시 — 추적 자체는 막지 않는다 */ }
   }
@@ -433,24 +475,75 @@ export function render(container) {
     // 서버 왕복이 없어졌으니(로컬 저장뿐) 예전처럼 "API 실패 시 추적을 살려두고 재시도"할
     // 이유가 없다 — 저장은 실패하지 않는다고 보고 바로 멈춘다.
     const endedAt = Date.now();
-    const distanceKm = distanceM / 1000;
-    const elapsedHours = (endedAt - startedAt) / 3600000;
-    const avgSpeedKmh = elapsedHours > 0 ? distanceKm / elapsedHours : 0;
-
-    saveCompletedSession({
-      sessionId,
-      recommendedRouteId: state.lastRecommend ? state.lastRecommend.recommendedRouteId : null,
-      startedAt,
-      endedAt,
-      distanceKm: Math.round(distanceKm * 100) / 100,
-      avgSpeedKmh: Math.round(avgSpeedKmh * 10) / 10,
-      alertReceivedCount: alertedZones.size,
-    });
+    const payload = buildCompletedPayload(sessionId,
+      state.lastRecommend ? state.lastRecommend.recommendedRouteId : null,
+      startedAt, endedAt, distanceM, alertedZones.size);
+    saveCompletedSession(payload);
 
     stopTracking();
     clearProgress();
-    alert(`라이딩 종료! ${Math.round(distanceKm * 100) / 100}km 달렸어요.`);
+    callNative('setActive', false);
+    alert(`라이딩 종료! ${payload.distanceKm}km 달렸어요.`);
     navigate('riding-history');
+  }
+
+  function buildCompletedPayload(sid, routeId, startMs, endMs, distM, alertCount) {
+    const distanceKm = distM / 1000;
+    const elapsedHours = (endMs - startMs) / 3600000;
+    return {
+      sessionId: sid,
+      recommendedRouteId: routeId,
+      startedAt: startMs,
+      endedAt: endMs,
+      distanceKm: Math.round(distanceKm * 100) / 100,
+      avgSpeedKmh: elapsedHours > 0 ? Math.round(distanceKm / elapsedHours * 10) / 10 : 0,
+      alertReceivedCount: alertCount,
+    };
+  }
+
+  function finalizeSavedSession(saved) {
+    const payload = buildCompletedPayload(saved.sessionId, saved.recommendedRouteId,
+      saved.startedAt, saved.lastUpdatedAt || Date.now(), saved.distanceM || 0,
+      (saved.alertedZones || []).length);
+    saveCompletedSession(payload);
+    clearProgress();
+    callNative('setActive', false);
+    return payload;
+  }
+
+  function pauseRiding() {
+    stopTracking();
+    isPaused = true;
+    saveProgress();
+    callNative('setActive', false);
+    setPauseButtonState(true);
+  }
+
+  function resumeFromPause() {
+    isPaused = false;
+    saveProgress();
+    callNative('setActive', true);
+    setPauseButtonState(false);
+    beginTracking();
+  }
+
+  function setPauseButtonState(paused) {
+    pauseBtn.textContent = paused ? '계속하기' : '일시중지';
+    pauseNoticeEl.style.display = paused ? 'block' : 'none';
+  }
+
+  function onAppPause() {
+    if (watchId != null) {
+      stopTracking();
+      suspendedByBackground = true;
+    }
+  }
+
+  function onAppResume() {
+    if (suspendedByBackground) {
+      suspendedByBackground = false;
+      if (!isPaused) beginTracking();
+    }
   }
 
   function stopTracking() {
@@ -465,5 +558,7 @@ export function render(container) {
   // 라우터가 다른 화면으로 이동할 때 호출하는 정리 함수
   return function cleanup() {
     stopTracking();
+    document.removeEventListener('pause', onAppPause);
+    document.removeEventListener('resume', onAppResume);
   };
 }

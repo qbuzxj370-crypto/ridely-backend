@@ -117,3 +117,6 @@ data/raw/
 
 # 공공데이터 원본 파일 (각자 data.go.kr에서 내려받아 배치)
 db/seed/
+
+# claude - codex 공동 개발용 폴더(김찬희)
+.agent

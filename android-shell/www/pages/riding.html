@@ -1,5 +1,6 @@
 <div class="screen">
   <div id="riding-idle">
+    <div id="riding-idle-notice"></div>
     <div class="card" id="riding-selected-card" style="display:none">
       <strong>선택된 코스</strong>
       <div id="riding-selected-summary"></div>
@@ -21,9 +22,11 @@
       <div>현재 속도 <strong id="riding-instant-speed">0.0</strong> km/h</div>
       <div>평균 속도 <strong id="riding-speed">0.0</strong> km/h</div>
     </div>
+    <div id="riding-pause-notice" class="info-banner" style="display:none">라이딩이 일시중지 중이에요.</div>
     <div id="riding-danger-alert"></div>
     <div id="riding-tour-alert"></div>
     <div id="riding-alert"></div>
+    <button class="btn btn-outline" id="riding-pause">일시중지</button>
     <button class="btn btn-primary" id="riding-end">라이딩 종료</button>
   </div>
 </div>
