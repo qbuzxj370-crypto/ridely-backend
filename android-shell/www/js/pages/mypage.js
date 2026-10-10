@@ -10,6 +10,7 @@ export function render(container) {
   loadSettings(container);
 
   container.querySelector('#mp-save-settings').addEventListener('click', () => saveSettings(container));
+  container.querySelector('#mp-riding-history').addEventListener('click', () => navigate('riding-history'));
   container.querySelector('#mp-logout').addEventListener('click', async () => {
     await logout();
     navigate('home');

@@ -4,6 +4,7 @@ import { requireLoginOrRedirect } from '../auth.js';
 import state from '../state.js';
 import { escapeHtml } from '../dom.js';
 import { fetchTourDetail, buildTourCard } from '../tour-card.js';
+import { navigate } from '../router.js';
 
 // 백엔드 WaypointDTO.type → 배지 라벨. ROUTE_FACILITY는 급수대·화장실·인증센터가 한 종류로
 // 묶여 내려오고 세부 종류 필드가 없어서 「편의시설」로 통칭할 수밖에 없다.
@@ -224,6 +225,7 @@ async function saveRoute(route) {
       body: { recommendedRouteId: route.recommendedRouteId },
     });
     alert('저장했어요!');
+    navigate('saved-routes');
   } catch (e) {
     alert('저장하지 못했어요: ' + e.message);
   }
