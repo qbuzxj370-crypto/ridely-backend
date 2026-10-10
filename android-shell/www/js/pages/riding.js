@@ -104,6 +104,7 @@ export function render(container) {
     updateSelectedSummary();
     startRiding();
   });
+  container.querySelector('#riding-history-btn').addEventListener('click', () => navigate('riding-history'));
   endBtn.addEventListener('click', endRiding);
   pauseBtn.addEventListener('click', () => {
     if (isPaused) resumeFromPause();
