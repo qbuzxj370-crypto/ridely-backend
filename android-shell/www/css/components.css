@@ -16,6 +16,27 @@
   font-size: 15px;
   font-weight: 700;
   width: 100%;
+  transition: transform .1s ease-out;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 6px;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .btn-primary {
@@ -126,6 +147,7 @@
   padding: 12px 0;
   border-bottom: 1px solid #eef2f1;
   cursor: pointer;
+  animation: fade-in-up .25s ease-out backwards;
 }
 
 .wp-item:last-child {
@@ -164,7 +186,11 @@
   position: absolute;
   inset: 0;
   background: rgba(26, 31, 30, 0.48);
+  opacity: 0;
+  transition: opacity .2s ease;
 }
+
+.wp-sheet-overlay.open .wp-sheet-backdrop { opacity: 1; }
 
 .wp-sheet {
   position: absolute;
@@ -177,7 +203,11 @@
   background: var(--color-surface);
   padding: 20px 18px max(24px, env(safe-area-inset-bottom));
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(100%);
+  transition: transform .25s ease-out;
 }
+
+.wp-sheet-overlay.open .wp-sheet { transform: translateY(0); }
 
 .wp-sheet-header {
   display: flex;
@@ -250,6 +280,7 @@
   background: #fff8f4;
   border-radius: 10px;
   padding: 12px;
+  animation: fade-in-up .25s ease-out backwards;
 }
 
 .tour-card-thumb {

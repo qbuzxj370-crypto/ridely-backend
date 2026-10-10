@@ -36,7 +36,7 @@
 <body>
     <div id="app-shell">
         <header id="app-header"><span>Ridely</span><button id="header-back-btn" class="header-back-btn" style="display:none">&lt;</button></header>
-        <main id="app"></main>
+        <main id="app"><div id="tab-views"></div><div id="page-view" style="display:none"></div></main>
         <nav id="tabbar">
             <button class="tab-btn" data-route="home" onclick="location.hash='#/home'">
                 <span class="tab-icon">🏠</span><span>홈</span>
@@ -50,6 +50,7 @@
             <button class="tab-btn" data-route="mypage" onclick="location.hash='#/mypage'">
                 <span class="tab-icon">👤</span><span>마이페이지</span>
             </button>
+            <span id="tab-indicator" class="tab-indicator" aria-hidden="true"></span>
         </nav>
     </div>
     <script src="cordova.js"></script>

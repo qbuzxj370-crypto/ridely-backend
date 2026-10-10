@@ -3,7 +3,7 @@ import { escapeHtml } from '../dom.js';
 import { requireLoginOrRedirect } from '../auth.js';
 import { navigate } from '../router.js';
 import state from '../state.js';
-import { createMap, drawPolyline, drawDangerZonePolygon, fitBounds } from '../map.js';
+import { createMap, drawPolyline, drawDangerZonePolygon, fitBounds, relayoutMap } from '../map.js';
 import { newSessionId, saveCompletedSession } from '../ride-storage.js';
 import { haversineM } from '../geo.js';
 
@@ -48,10 +48,11 @@ function callNative(action, ...args) {
 }
 
 export function render(container) {
-  if (!requireLoginOrRedirect('riding')) return;
+  if (!requireLoginOrRedirect('riding')) return null;
 
   let watchId = null;
   let timerId = null;
+  let isVisible = true;
   let startedAt = null;
   let lastSample = null; // 로컬 궤적(track) 샘플링 기준점 (10초/50m) — 서버로는 전송되지 않는다
   let lastFix = null;    // 이동거리 누적 기준점 — 매 GPS 갱신마다 갱신, 샘플링과 무관
@@ -185,9 +186,9 @@ export function render(container) {
     clearTourAlert();
 
     await initMap();
-    beginTracking();
+    if (isVisible && startedAt != null) beginTracking();
     saveProgress();
-    callNative('setActive', true);
+    if (isVisible && startedAt != null) callNative('setActive', true);
   }
 
   /**
@@ -245,12 +246,15 @@ export function render(container) {
     if (isPaused) {
       setPauseButtonState(true);
     } else {
-      beginTracking();
-      callNative('setActive', true);
+      if (isVisible && startedAt != null) {
+        beginTracking();
+        callNative('setActive', true);
+      }
     }
   }
 
   function beginTracking() {
+    if (watchId != null || startedAt == null) return;
     timerId = setInterval(updateElapsed, 1000);
     watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
       enableHighAccuracy: true,
@@ -482,6 +486,15 @@ export function render(container) {
     saveCompletedSession(payload);
 
     stopTracking();
+    startedAt = null;
+    activeBox.style.display = 'none';
+    idleBox.style.display = 'block';
+    if (liveMarker) liveMarker.setMap(null);
+    if (traveledPolyline) traveledPolyline.setMap(null);
+    map = null;
+    liveMarker = null;
+    traveledPolyline = null;
+    traveledPath = [];
     clearProgress();
     callNative('setActive', false);
     alert(`라이딩 종료! ${payload.distanceKm}km 달렸어요.`);
@@ -543,7 +556,7 @@ export function render(container) {
   function onAppResume() {
     if (suspendedByBackground) {
       suspendedByBackground = false;
-      if (!isPaused) beginTracking();
+      if (!isPaused && isVisible) beginTracking();
     }
   }
 
@@ -556,10 +569,24 @@ export function render(container) {
     tourAlertTimerId = null;
   }
 
-  // 라우터가 다른 화면으로 이동할 때 호출하는 정리 함수
-  return function cleanup() {
-    stopTracking();
-    document.removeEventListener('pause', onAppPause);
-    document.removeEventListener('resume', onAppResume);
+  return {
+    onHide: () => {
+      isVisible = false;
+      stopTracking();
+    },
+    onShow: () => {
+      if (!requireLoginOrRedirect('riding')) return false;
+      isVisible = true;
+      if (map) relayoutMap(map);
+      if (startedAt == null) {
+        // 대기 화면에서만 최신 코스 기준을 반영한다.
+        dangerZones = (state.lastRecommend && state.lastRecommend.passingDangerZones) || [];
+        updateSelectedSummary();
+        loadSavedRoutes();
+      } else if (!isPaused && watchId == null) {
+        beginTracking();
+        callNative('setActive', true);
+      }
+    },
   };
 }

@@ -25,6 +25,10 @@ let currentCleanup = null;
 // (onBackInvoked는 반복 발생하는데 화면은 그대로 있는 증상), 뒤로가기를
 // "이전 해시로 되돌리기"가 아니라 "직전에 스택에 쌓인 라우트로 직접 이동"으로 바꾼다.
 const navStack = [];
+const tabContainers = new Map();
+const tabLifecycles = new Map();
+let activeTabRoute = null;
+let renderSequence = 0;
 
 // 뒤로가기로 종료되는 지점(navStack 비었거나 홈)에서 한 번에 안 꺼지고
 // 짧은 시간 안에 한 번 더 눌러야 꺼지게 한다 — 실수로 앱이 바로 닫히는 걸 막는다.
@@ -51,30 +55,108 @@ function parseHash() {
   return { route: route || 'home', params: new URLSearchParams(queryStr || '') };
 }
 
+function playEntryAnimation(screenEl) {
+  if (!screenEl) return;
+  screenEl.style.animation = 'none';
+  void screenEl.offsetWidth; // 애니메이션을 처음부터 다시 재생한다.
+  screenEl.style.animation = '';
+}
+
 async function renderRoute() {
+  const sequence = ++renderSequence;
   const { route, params } = parseHash();
   const def = routes[route] || routes.home;
+  const isTab = TAB_ROUTES.includes(route);
+  const app = document.getElementById('app');
+  const tabViews = document.getElementById('tab-views');
+  const pageView = document.getElementById('page-view');
 
-  if (currentCleanup) {
-    try { currentCleanup(); } catch (e) { console.error(e); }
-    currentCleanup = null;
+  if (activeTabRoute && activeTabRoute !== route) {
+    const prevLifecycle = tabLifecycles.get(activeTabRoute);
+    if (prevLifecycle && prevLifecycle.onHide) {
+      try { prevLifecycle.onHide(); } catch (e) { console.error(e); }
+    }
+    const prevWrapper = tabContainers.get(activeTabRoute);
+    if (prevWrapper) prevWrapper.style.display = 'none';
+    activeTabRoute = null;
   }
 
-  const container = document.getElementById('app');
-  try {
-    const htmlText = await fetch(def.html).then((r) => r.text());
-    container.innerHTML = htmlText;
-    const mod = await import(def.mod);
-    const result = mod.render(container, params);
-    if (typeof result === 'function') currentCleanup = result;
-  } catch (e) {
-    console.error('page render failed', route, e);
-    container.innerHTML = `<div class="screen"><div class="error-banner">화면을 불러오지 못했어요: ${escapeHtml(e.message)}</div></div>`;
+  if (isTab) {
+    if (currentCleanup) {
+      try { currentCleanup(); } catch (e) { console.error(e); }
+      currentCleanup = null;
+    }
+    pageView.style.display = 'none';
+    tabViews.style.display = '';
+
+    let wrapper = tabContainers.get(route);
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      tabViews.appendChild(wrapper);
+      try {
+        const htmlText = await fetch(def.html).then((r) => r.text());
+        if (sequence !== renderSequence) { wrapper.remove(); return; }
+        wrapper.innerHTML = htmlText;
+        const mod = await import(def.mod);
+        if (sequence !== renderSequence) { wrapper.remove(); return; }
+        const lifecycle = mod.render(wrapper, params);
+        if (lifecycle === null) {
+          wrapper.remove();
+          wrapper = null;
+        } else {
+          tabContainers.set(route, wrapper);
+          tabLifecycles.set(route, lifecycle || {});
+        }
+      } catch (e) {
+        if (sequence !== renderSequence) { wrapper.remove(); return; }
+        console.error('page render failed', route, e);
+        wrapper.remove();
+        wrapper = null;
+      }
+    } else {
+      wrapper.style.display = '';
+      const lifecycle = tabLifecycles.get(route);
+      if (lifecycle && lifecycle.onShow) {
+        try {
+          if (lifecycle.onShow() === false) {
+            wrapper.style.display = 'none';
+            wrapper = null;
+          }
+        } catch (e) { console.error(e); }
+      }
+    }
+
+    if (wrapper) {
+      wrapper.style.display = '';
+      activeTabRoute = route;
+      playEntryAnimation(wrapper.firstElementChild);
+    }
+  } else {
+    tabViews.style.display = 'none';
+    pageView.style.display = '';
+
+    if (currentCleanup) {
+      try { currentCleanup(); } catch (e) { console.error(e); }
+      currentCleanup = null;
+    }
+    try {
+      const htmlText = await fetch(def.html).then((r) => r.text());
+      if (sequence !== renderSequence) return;
+      pageView.innerHTML = htmlText;
+      const mod = await import(def.mod);
+      if (sequence !== renderSequence) return;
+      const result = mod.render(pageView, params);
+      if (typeof result === 'function') currentCleanup = result;
+    } catch (e) {
+      if (sequence !== renderSequence) return;
+      console.error('page render failed', route, e);
+      pageView.innerHTML = `<div class="screen"><div class="error-banner">화면을 불러오지 못했어요: ${escapeHtml(e.message)}</div></div>`;
+    }
   }
 
   updateTabbar(route);
   updateHeaderBack(route);
-  container.scrollTop = 0;
+  app.scrollTop = 0;
 }
 
 function updateTabbar(route) {
@@ -82,6 +164,8 @@ function updateTabbar(route) {
     btn.classList.toggle('active', btn.dataset.route === route);
   });
   document.getElementById('tabbar').style.display = TAB_ROUTES.includes(route) ? 'flex' : 'none';
+  const indicator = document.getElementById('tab-indicator');
+  if (indicator) indicator.style.transform = `translateX(${TAB_ROUTES.indexOf(route) * 100}%)`;
 }
 
 function updateHeaderBack(route) {

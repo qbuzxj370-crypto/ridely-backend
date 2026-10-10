@@ -5,7 +5,7 @@ import { navigate } from '../router.js';
 import { getSummary } from '../ride-storage.js';
 
 export function render(container) {
-  if (!requireLoginOrRedirect('mypage')) return;
+  if (!requireLoginOrRedirect('mypage')) return null;
   loadSummary(container);
   loadSettings(container);
 
@@ -14,6 +14,11 @@ export function render(container) {
     await logout();
     navigate('home');
   });
+  return { onShow: () => {
+    if (!requireLoginOrRedirect('mypage')) return false;
+    loadSummary(container);
+    loadSettings(container);
+  } };
 }
 
 // 서버 GET /riding-sessions/summary 대신 로컬 기록을 직접 합산한다
